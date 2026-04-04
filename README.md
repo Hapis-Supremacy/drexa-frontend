@@ -1,36 +1,184 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 Drexa — Frontend
 
-## Getting Started
+A modern, responsive crypto trading platform frontend built with **Next.js**, designed for performance, scalability, and a clean user experience.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 📌 Overview
+
+This project is the frontend for a crypto trading application focused on **spot trading**. It provides users with an intuitive interface to:
+
+* Register and authenticate securely
+* View market data and asset prices
+* Execute trades
+* Monitor portfolio performance
+* Understand trading risks through onboarding flows
+
+The system is designed with two main roles in mind:
+
+* **User (Trader)** — interacts with the trading platform
+* **Admin/Owner (future expansion)** — manages system-level operations
+
+---
+
+## 🧱 Tech Stack
+
+* **Framework:** Next.js (App Router)
+* **UI Library:** shadcn/ui, framer-motion
+* **Styling:** Tailwind CSS
+* **State Management:** (TBD / customizable — e.g., Zustand or React Context)
+* **Routing:** Next.js routing system
+* **API Communication:** Fetch / Axios (connected to Go backend)
+* **Authentication:** Custom email/password auth via backend
+
+---
+
+## ✨ Features
+
+### 🔐 Authentication System
+
+* Email & password login
+* Error handling with user-friendly feedback
+* Planned:
+
+  * National ID verification (KYC)
+  * Face verification integration
+  * Risk-awareness onboarding quiz
+
+---
+
+### 📊 Trading Interface
+
+* Real-time (or near real-time) market data display
+* Buy/sell crypto assets (spot trading)
+* Order input panel (price, amount, confirmation)
+
+---
+
+### 💼 Portfolio Dashboard
+
+* Asset balance overview
+* Profit/loss tracking
+* Transaction history
+
+---
+
+### ⚠️ Risk Awareness
+
+* Optional onboarding quiz to ensure users understand:
+
+  * Volatility
+  * Leverage (educational context only)
+  * Margin call concepts (for awareness, even in spot context)
+
+---
+
+## 🧩 Project Structure (Simplified)
+
+```
+/app
+  /auth
+    /login
+    /register
+  /dashboard
+  /trade
+  /portfolio
+
+/components
+  /ui        # shadcn/ui components
+  /shared    # reusable components
+  /features  # feature-specific components
+
+/lib
+  api        # API utilities
+  utils      # helper functions
+
+/styles
+  globals.css
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🎨 UI/UX Principles
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+* Clean, minimal, and modern interface
+* Fast interactions with minimal reloads (SPA-like experience)
+* Clear feedback for errors and actions
+* Smooth transitions and animations (SCSS planned)
+* Accessibility-friendly components via shadcn/ui
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🔌 Backend Integration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This frontend connects to a custom backend built with **Go**. Key responsibilities include:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+* Authentication & session handling
+* Trade execution logic
+* User data & portfolio management
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🔒 Security Considerations
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+* Input validation on both frontend & backend
+* Secure authentication flow
+* KYC integration (planned)
+* Protection against common vulnerabilities (XSS, CSRF, etc.)
+
+---
+
+## 🚧 Future Improvements
+
+* Real-time updates via WebSockets
+* Advanced charting tools
+* Dark/light theme toggle
+* Mobile-first optimization
+* Notifications system (price alerts, trade confirmations)
+* Multi-language support
+
+---
+
+## ⚙️ Setup & Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+```
+
+---
+
+## 📄 Notes
+
+* This project focuses on **spot trading**, not derivatives (e.g., futures or CFDs).
+* Educational elements are included to promote responsible trading behavior.
+* Designed to be scalable for future financial features.
+
+---
+
+## 🤝 Suggestion
+
+This project is currently under active development. Suggestions, and improvements are always welcomed.
+
+---
+
+## 📜 License
+
+This project is proprietary software.
+
+All rights reserved. Unauthorized copying, modification, or distribution is not permitted.
+
+---
+
+## 💡 Philosophy
+
+Build a trading platform that is:
+
+* Simple enough for beginners
+* Powerful enough for growth
+* Responsible in educating users about financial risk
+
+---
