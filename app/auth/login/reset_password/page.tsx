@@ -2,6 +2,14 @@
 
 import { ArrowLeft, CircleAlert } from "lucide-react"
 
+<<<<<<< HEAD
+=======
+import { useSearchParams } from "next/navigation"
+
+const searchParams = useSearchParams()
+const resetToken = searchParams.get("token")
+
+>>>>>>> 068b19a (added API calls to some features)
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"

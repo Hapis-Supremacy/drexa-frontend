@@ -5,8 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+<<<<<<< HEAD
 const verificationCode = "6123";
 
+=======
+>>>>>>> 068b19a (added API calls to some features)
 // schema
 const verificationSchema = z.object({
   code: z
@@ -30,6 +33,7 @@ export default function EmailVerificationPage() {
 
   const code = watch("code", "");
 
+<<<<<<< HEAD
   const onSubmit = (data: FormData) => {
     if (data.code !== verificationCode) {
         setError("code", {
@@ -40,6 +44,45 @@ export default function EmailVerificationPage() {
     }
     console.log("Success");
   };
+=======
+  const onSubmit = async (data: FormData) => {
+  try {
+    const email = localStorage.getItem("email"); 
+
+    const res = await fetch("http://localhost:8080/api/v1/auth/verify-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include", 
+      body: JSON.stringify({
+        email,
+        otp: data.code,
+      }),
+    });
+
+    if (res.status === 200) {
+      console.log("Verification success");
+      // redirect ke landing page atau ke mana lah akowkaow
+      window.location.href = "/dashboard";
+    } 
+    
+    else {
+      setError("code", {
+        type: "manual",
+        message: "Invalid or expired code",
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+    setError("code", {
+      type: "manual",
+      message: "Server error. Try again.",
+    });
+  }
+};
+>>>>>>> 068b19a (added API calls to some features)
 
   return (
     <main className="bg-background min-h-screen flex flex-col items-center justify-center p-4 lg:p-0 overflow-hidden relative">

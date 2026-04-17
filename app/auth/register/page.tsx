@@ -52,9 +52,46 @@ function RegisterPage() {
   const passwordsMatch =
     confirmPassword.length > 0 && password === confirmPassword;
 
+<<<<<<< HEAD
   const onSubmit = (data: FormData) => {
     console.log("FORM DATA:", data);
     router.push("/auth/register/registration_details"); // ✅ ADDED (redirect page)
+=======
+  const onSubmit = async (data: FormData) => {
+    console.log("FORM DATA:", data);
+
+    try {
+    const res = await fetch("http://localhost:8080/api/v1/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+      }),
+    });
+
+    if (res.status === 200) {
+      // success terus OTP sent
+      router.push("/auth/register/email_verification");
+    } 
+    
+    else if (res.status === 409) {
+      alert("Email already exists");
+    } 
+    
+    else {
+      const err = await res.text();
+      console.error("ERROR:", err);
+      alert("Something went wrong");
+    }
+
+  } catch (error) {
+    console.error("FETCH ERROR:", error);
+    alert("Cannot connect to server");
+  }
+>>>>>>> 068b19a (added API calls to some features)
   };
 
   // helper UI

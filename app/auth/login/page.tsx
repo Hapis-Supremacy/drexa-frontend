@@ -10,7 +10,11 @@ import { useRouter } from "next/navigation"
 // schema
 const loginSchema = z.object({
     email: z.string().email("Invalid email"),
+<<<<<<< HEAD
     password: z.string(),
+=======
+    password: z.string().min(8, "Password must be at least 8 characters"),
+>>>>>>> 068b19a (added API calls to some features)
 })
 
 type loginData = z.infer<typeof loginSchema>;
@@ -31,9 +35,45 @@ function LoginPage(){
         },
     });
 
+<<<<<<< HEAD
     const onSubmit = (data: loginData) => {
         console.log("LOGIN DATA:", data);
         router.push("/auth/login/login_filled");
+=======
+    const onSubmit = async (data: loginData) => {
+        try {
+            const res = await fetch("http://localhost:8080/api/v1/auth/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                credentials: "include", 
+                body: JSON.stringify({
+                        email: data.email,
+                        password: data.password,
+                }),
+            });
+
+            if (res.status === 200) {
+                // login success ada cookies enak
+                router.push("/dashboard");
+            } 
+            
+            else if (res.status === 401) {
+                alert("Invalid email or password");
+            } 
+            
+            else {
+                const err = await res.text();
+                console.error("ERROR:", err);
+                alert("Something went wrong");
+            }
+
+        } catch (err) {
+            console.error("FETCH ERROR:", err);
+            alert("Cannot connect to server");
+        }
+>>>>>>> 068b19a (added API calls to some features)
     };
 
     const renderError = (message: string) => (
@@ -86,6 +126,25 @@ function LoginPage(){
                         {errors.email && renderError(errors.email.message!)}
                     </div>
 
+<<<<<<< HEAD
+=======
+                    <div className="space-y-1 font-bold mt-2" id="input_section">
+                        <label htmlFor="password_input" className="text-white">
+                            Password
+                        </label>
+
+                        <input 
+                            {...register("password")}
+                            type="password" 
+                            id="password_input" 
+                            placeholder="Your Password" 
+                            className="border border-transparent bg-input w-full focus:outline-none rounded-lg px-6 py-4 text-white placeholder:text-muted-foreground"
+                        />
+
+                        {errors.password && renderError(errors.password.message!)}
+                    </div>
+
+>>>>>>> 068b19a (added API calls to some features)
                     <button 
                         type="submit"
                         disabled={!isValid}
