@@ -5,11 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-<<<<<<< HEAD
-const verificationCode = "6123";
-
-=======
->>>>>>> 068b19a (added API calls to some features)
 // schema
 const verificationSchema = z.object({
   code: z
@@ -33,18 +28,6 @@ export default function EmailVerificationPage() {
 
   const code = watch("code", "");
 
-<<<<<<< HEAD
-  const onSubmit = (data: FormData) => {
-    if (data.code !== verificationCode) {
-        setError("code", {
-            type: "manual",
-            message: "Incorrect code. Please try again.",
-        });
-        return;
-    }
-    console.log("Success");
-  };
-=======
   const onSubmit = async (data: FormData) => {
   try {
     const email = localStorage.getItem("email"); 
@@ -82,7 +65,6 @@ export default function EmailVerificationPage() {
     });
   }
 };
->>>>>>> 068b19a (added API calls to some features)
 
   return (
     <main className="bg-background min-h-screen flex flex-col items-center justify-center p-4 lg:p-0 overflow-hidden relative">
