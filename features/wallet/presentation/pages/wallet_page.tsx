@@ -27,7 +27,7 @@ type Coin = {
     price_change_percentage_24h: number | null;
 };
 
-export default function WalletPage() {
+export function WalletPage() {
     const [selected, setSelected] = useState(1); // default pilih Category 1
     const [sideSelected, setSideSelected] = useState(0);
     

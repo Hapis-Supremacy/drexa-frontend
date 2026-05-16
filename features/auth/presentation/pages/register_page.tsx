@@ -20,7 +20,7 @@ const registerSchema = z
 
 type FormData = z.infer<typeof registerSchema>;
 
-function RegisterPage() {
+export function RegisterPage() {
   const router = useRouter(); // ✅ ADDED
 
   const {
@@ -213,5 +213,3 @@ function RegisterPage() {
     </main>
   );
 }
-
-export default RegisterPage;

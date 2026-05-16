@@ -22,7 +22,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-export default function RegistrationDetailsPage() {
+export function RegistrationDetailsPage() {
     const router = useRouter()
 
     const {

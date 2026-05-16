@@ -22,7 +22,7 @@ const filledSchema = z
 
 type FilledData = z.infer<typeof filledSchema>;
 
-function LoginFilledPage() {
+export function LoginFilledPage() {
     const router = useRouter();
 
     const {
@@ -117,5 +117,3 @@ function LoginFilledPage() {
         </div> 
     );
 }
-
-export default LoginFilledPage;

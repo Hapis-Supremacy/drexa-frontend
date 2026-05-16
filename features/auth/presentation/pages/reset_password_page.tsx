@@ -25,7 +25,7 @@ const resetSchema = z
 
 type resetData = z.infer<typeof resetSchema>
 
-export default function ResetPasswordPage() {
+export function ResetPasswordPage() {
     const {
         register,
         handleSubmit,

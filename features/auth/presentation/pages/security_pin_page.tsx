@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react"
 
-export default function Security_pin(){
+export function SecurityPin(){
     return (
         <main className="bg-background min-h-screen flex flex-col items-center justify-center overflow-hidden relative">
             {/* PENTING BUAT BACKGROUND CIRCLE */}

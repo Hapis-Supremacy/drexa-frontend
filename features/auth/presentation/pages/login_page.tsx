@@ -15,7 +15,7 @@ const loginSchema = z.object({
 
 type loginData = z.infer<typeof loginSchema>;
 
-function LoginPage(){
+export function LoginPage(){
     const router = useRouter()
 
     const {
@@ -48,7 +48,7 @@ function LoginPage(){
             if (res.status === 200) {
                 // login success ada cookies enak
                 router.push("/dashboard");
-            } 
+            }
             
             else if (res.status === 401) {
                 alert("Invalid email or password");
@@ -156,17 +156,17 @@ function LoginPage(){
 
                     <div className="flex flex-col items-center gap-2 mt-6">
                         <h1 
-                            onClick={() => router.push("/auth/register/")} 
+                            onClick={() => router.push("/register/")} 
                             className="text-sm xl:text-base font-bold bg-clip-text opacity-100 hover:opacity-90 transition-all duration-300 cursor-pointer text-transparent bg-gradient-to-r from-[#00FFA3] to-[#3B82F6]"
                         >
                             Create a Drexa account
                         </h1>
 
                         <h1 
-                            onClick={() => router.push("/auth/login/forgot_password")} 
+                            onClick={() => router.push("/forgot_password")} 
                             className="text-sm xl:text-base font-bold bg-clip-text opacity-100 hover:opacity-90 transition-all duration-300 cursor-pointer text-transparent bg-gradient-to-r from-[#00FFA3] to-[#3B82F6]"
                         >
-                            Can't log in?
+                            {"Can't log in?"}
                         </h1>
                     </div>
                 </form>
@@ -174,5 +174,3 @@ function LoginPage(){
         </main>
     )
 }
-
-export default LoginPage;

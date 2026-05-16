@@ -4,7 +4,7 @@ import { CheckCircle } from "lucide-react"
 
 import { useRouter } from "next/navigation"
 
-export default function RegistrationCompletePage() {
+export function RegistrationCompletePage() {
     const router = useRouter()
 
     const onSubmit = (e: React.FormEvent) => {

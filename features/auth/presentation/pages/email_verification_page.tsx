@@ -15,7 +15,7 @@ const verificationSchema = z.object({
 
 type FormData = z.infer<typeof verificationSchema>;
 
-export default function EmailVerificationPage() {
+export function EmailVerificationPage() {
     const {
         register,
         handleSubmit,

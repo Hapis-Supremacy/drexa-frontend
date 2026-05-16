@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react"
 
 import { useRouter } from "next/navigation"
 
-export default function IdentityFacePage() {
+export function IdentityFacePage() {
     const router = useRouter()
 
     const onSubmit = (e: React.FormEvent) => {

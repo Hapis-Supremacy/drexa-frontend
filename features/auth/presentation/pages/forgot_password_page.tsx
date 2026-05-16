@@ -17,7 +17,7 @@ const forgotPassSchema = z.object({
 
 type FormData = z.infer<typeof forgotPassSchema>
 
-export default function ForgotPasswordPage() {
+export function ForgotPasswordPage() {
     const router = useRouter()
 
     const {

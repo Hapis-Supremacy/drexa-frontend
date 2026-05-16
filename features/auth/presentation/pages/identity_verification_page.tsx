@@ -4,7 +4,7 @@ import { Camera } from "lucide-react"
 
 import { useRouter } from "next/navigation";
 
-export default function IdentityVerificationPage() {
+export function IdentityVerificationPage() {
     const router = useRouter();
     const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
