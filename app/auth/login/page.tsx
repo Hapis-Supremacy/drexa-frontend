@@ -96,7 +96,7 @@ function LoginPage(){
                         <h1 className="text-3xl text-white font-sans font-bold">Log In</h1>
                     </div>
 
-                    <p className="font-bold text-gray-400 mt-2">
+                    <p className="font-semibold text-gray-400 mt-2">
                         Use the registered email and password to log in to your account
                     </p>
 

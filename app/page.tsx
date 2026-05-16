@@ -1,10 +1,10 @@
 import { li } from "motion/react-m";
 import Image from "next/image";
 
-import RegisterPage from "./auth/register/page";
+import DashboardPage from "./dashboard/page";
 
 export default function Home() {
   return (
-    <RegisterPage />
+    <DashboardPage />
   );
 }
