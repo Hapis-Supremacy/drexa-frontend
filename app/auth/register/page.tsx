@@ -52,11 +52,6 @@ function RegisterPage() {
   const passwordsMatch =
     confirmPassword.length > 0 && password === confirmPassword;
 
-<<<<<<< HEAD
-  const onSubmit = (data: FormData) => {
-    console.log("FORM DATA:", data);
-    router.push("/auth/register/registration_details"); // ✅ ADDED (redirect page)
-=======
   const onSubmit = async (data: FormData) => {
     console.log("FORM DATA:", data);
 
@@ -91,7 +86,6 @@ function RegisterPage() {
     console.error("FETCH ERROR:", error);
     alert("Cannot connect to server");
   }
->>>>>>> 068b19a (added API calls to some features)
   };
 
   // helper UI

@@ -68,7 +68,7 @@ export default function RegistrationDetailsPage() {
             <div className="z-10 p-[1px] rounded-[30px] bg-gradient-to-b from-gray-700 via-slate-800 to-slate-700">
                 <form
                     onSubmit={handleSubmit(onSubmit)}
-                    className="bg-gradient-to-b from-[#15182B] to-[#1C2140] w-full max-w-md flex flex-col gap-6 p-6 rounded-[30px]"
+                    className="bg-gradient-to-b from-[#15182B] to-[#1C2140] w-full max-w-xl flex flex-col gap-4 p-6 rounded-[30px]"
                 >
                     {/* header */}
                     <div className="flex gap-4 items-center">
@@ -82,7 +82,7 @@ export default function RegistrationDetailsPage() {
                         </h1>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                         {/* Name */}
                         <div>
                             <label className="text-white font-bold">Name</label>
@@ -197,6 +197,17 @@ export default function RegistrationDetailsPage() {
                                     {errors.phone.message}
                                 </p>
                             )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex items-start gap-1">
+                            <input type="checkbox" id="risk_agreement" />
+                            <label htmlFor="risk_agreement" className="text-white text-sm font-semibold">I understand that crypto trading involves risk and I may lose money</label>
+                        </div>
+                        <div className="flex items-start gap-1">
+                            <input type="checkbox" id="tos_agreement"/>
+                            <label htmlFor="tos_agreement" className="text-white text-sm font-semibold">By creating an account, I agree to the Terms of Service, Privacy Policy, and Risk Disclosure, as well as applicable Indonesian regulations (OJK)</label>
                         </div>
                     </div>
 
