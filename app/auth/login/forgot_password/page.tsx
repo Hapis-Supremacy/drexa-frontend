@@ -33,19 +33,6 @@ export default function ForgotPasswordPage() {
         },
     })
 
-<<<<<<< HEAD
-    const onSubmit = (data: FormData) => {
-        if (data.email !== emailDummy) {
-            setError("email", {
-                message: "Email doesn't exist. Please try again.",
-            })
-            return
-        }
-
-        console.log("Email Confirmed:", data)
-        router.push("/auth/login/reset_password")
-    }
-=======
    const onSubmit = async (data: FormData) => {
     try {
         const res = await fetch("/api/v1/auth/forgot-password", {
@@ -71,7 +58,6 @@ export default function ForgotPasswordPage() {
         })
     }
 }
->>>>>>> 068b19a (added API calls to some features)
 
     return (
         <main className="bg-background min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
@@ -119,11 +105,7 @@ export default function ForgotPasswordPage() {
                     <button
                         type="submit"
                         disabled={!isValid}
-<<<<<<< HEAD
-                        className={`mt-4 py-4 rounded-lg text-white font-bold transition
-=======
                         className={`mt-4 py-4 opacity-100 hover:opacity-90 cursor-pointer rounded-lg text-white font-bold transition
->>>>>>> 068b19a (added API calls to some features)
                             ${
                                 isValid
                                     ? "bg-gradient-to-r from-[#00FFA3] to-[#3B82F6]"

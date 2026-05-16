@@ -10,11 +10,7 @@ import { useRouter } from "next/navigation"
 // schema
 const loginSchema = z.object({
     email: z.string().email("Invalid email"),
-<<<<<<< HEAD
-    password: z.string(),
-=======
     password: z.string().min(8, "Password must be at least 8 characters"),
->>>>>>> 068b19a (added API calls to some features)
 })
 
 type loginData = z.infer<typeof loginSchema>;
@@ -35,11 +31,6 @@ function LoginPage(){
         },
     });
 
-<<<<<<< HEAD
-    const onSubmit = (data: loginData) => {
-        console.log("LOGIN DATA:", data);
-        router.push("/auth/login/login_filled");
-=======
     const onSubmit = async (data: loginData) => {
         try {
             const res = await fetch("http://localhost:8080/api/v1/auth/login", {
@@ -73,7 +64,6 @@ function LoginPage(){
             console.error("FETCH ERROR:", err);
             alert("Cannot connect to server");
         }
->>>>>>> 068b19a (added API calls to some features)
     };
 
     const renderError = (message: string) => (
@@ -106,7 +96,7 @@ function LoginPage(){
                         <h1 className="text-3xl text-white font-sans font-bold">Log In</h1>
                     </div>
 
-                    <p className="font-bold text-gray-400 mt-2">
+                    <p className="font-semibold text-gray-400 mt-2">
                         Use the registered email and password to log in to your account
                     </p>
 
@@ -126,8 +116,6 @@ function LoginPage(){
                         {errors.email && renderError(errors.email.message!)}
                     </div>
 
-<<<<<<< HEAD
-=======
                     <div className="space-y-1 font-bold mt-2" id="input_section">
                         <label htmlFor="password_input" className="text-white">
                             Password
@@ -144,7 +132,6 @@ function LoginPage(){
                         {errors.password && renderError(errors.password.message!)}
                     </div>
 
->>>>>>> 068b19a (added API calls to some features)
                     <button 
                         type="submit"
                         disabled={!isValid}
