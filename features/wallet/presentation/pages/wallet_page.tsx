@@ -15,17 +15,9 @@ import {
 
 import Image from "next/image"
 
-import { useEffect, useState } from "react";
+import { Coin } from "@/features/wallet/domain/model";
 
-type Coin = {
-    id: string;
-    name: string;
-    symbol: string;
-    image: string;
-    current_price: number;
-    total_volume: number;
-    price_change_percentage_24h: number | null;
-};
+import { useEffect, useState } from "react";
 
 export function WalletPage() {
     const [selected, setSelected] = useState(1); // default pilih Category 1
@@ -35,8 +27,6 @@ export function WalletPage() {
     const [viewBalance, setViewBalance] = useState(false);
 
     const [markets, setMarkets] = useState<Coin[]>([]);
-    
-    // PAKEEE APIIII MENNNNNNNNN
 
     useEffect(() => {
         const fetchData = async () => {
