@@ -1,10 +1,5 @@
-import { li } from "motion/react-m";
-import Image from "next/image";
+import { redirect } from "next/navigation"
 
-import DashboardPage from "./dashboard/page";
-
-export default function Home() {
-  return (
-    <DashboardPage />
-  );
+export default function HomePage() {
+  redirect("/wallet")
 }
