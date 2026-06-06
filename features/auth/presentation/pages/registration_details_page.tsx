@@ -56,11 +56,6 @@ export function RegistrationDetailsPage() {
         setDateError(null)
 
         localStorage.setItem("kyc_details", JSON.stringify({ ...data, dob: date?.toISOString(), country }))
-        fetch("http://localhost:8080/api/v1/kyc/details", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...data, dob: date?.toISOString(), country }),
-        }).catch(() => {})
         router.push("/register/identity")
     }
 

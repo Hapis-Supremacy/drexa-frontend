@@ -30,6 +30,14 @@ export function TopNav() {
   const active  = activeId(pathname);
   const bal     = portfolioTotals().value;
 
+  const onLogout = async () => {
+    await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+    router.replace('/login');
+  };
+
   return (
     <header style={{
       height: 64, display: 'flex', alignItems: 'center', gap: 22, padding: '0 24px',
@@ -93,6 +101,22 @@ export function TopNav() {
       </button>
 
       <TIcon name="bell" size={20} color="var(--fg-3)" style={{ cursor: 'pointer' }} />
+
+      <button
+        onClick={onLogout}
+        title="Log out"
+        style={{
+          ...btnGhost,
+          width: 38,
+          height: 38,
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <TIcon name="logout" size={17} color="var(--fg-3)" />
+      </button>
 
       <span style={{
         width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-gradient)',

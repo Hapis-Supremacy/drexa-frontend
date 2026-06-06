@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
+import type { User } from "firebase/auth";
 import { auth } from "@/features/core/store/firebase";
+import { signInWithBackend } from "./backendAuth";
 
 type RegisterStatus = "idle" | "loading" | "success" | "error";
 
@@ -27,38 +29,20 @@ export const useRegister = (): UseRegisterReturn => {
     setStatus("loading");
     setError(null);
 
-    let firebaseUser = null;
+    let firebaseUser: User | null = null;
 
     try {
-      // Step 1: Firebase creates the user and issues an ID token
       const result = await createUserWithEmailAndPassword(auth, email, password);
       firebaseUser = result.user;
       const idToken = await firebaseUser.getIdToken();
 
-      // Step 2: Backend verifies the ID token, creates the user record, and sends OTP
-      const res = await fetch("http://localhost:8080/api/v1/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-
-      // Done with Firebase session
+      await signInWithBackend(idToken);
       await auth.signOut();
-
-      if (!res.ok) {
-        // Clean up orphaned Firebase account on backend failure
-        await firebaseUser.delete().catch(() => {});
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? "Registration failed");
-      }
-
-      // Store email so the verification page can read it
-      localStorage.setItem("pending_email", email);
 
       setStatus("success");
       return true;
-
     } catch (err: unknown) {
+      await firebaseUser?.delete().catch(() => {});
       await auth.signOut().catch(() => {});
 
       const firebaseErr = err as FirebaseError;

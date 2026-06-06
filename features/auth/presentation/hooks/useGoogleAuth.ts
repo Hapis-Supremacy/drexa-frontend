@@ -1,8 +1,7 @@
 import { useState, useCallback } from "react";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from "@/features/core/store/firebase";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { signInWithBackend } from "./backendAuth";
 
 interface AuthUser {
   id: string;
@@ -12,16 +11,16 @@ interface AuthUser {
   provider: "google";
 }
 
-interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-}
-
-interface AuthSession extends AuthTokens {
+interface AuthSession {
+  message: string;
   user: AuthUser;
 }
 
 type AuthStatus = "idle" | "loading" | "success" | "error";
+
+const FIREBASE_ERRORS: Record<string, string> = {
+  "auth/operation-not-allowed": "Google sign-in is not enabled in Firebase Authentication",
+};
 
 interface UseGoogleAuthReturn {
   status: AuthStatus;
@@ -32,13 +31,6 @@ interface UseGoogleAuthReturn {
   logout: () => void;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const TOKEN_KEY = "access_token";
-const REFRESH_KEY = "refresh_token";
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
 export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const [status, setStatus] = useState<AuthStatus>("idle");
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -47,49 +39,42 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const login = useCallback(async (): Promise<AuthSession | null> => {
     setStatus("loading");
     setError(null);
-    
+
     const provider = new GoogleAuthProvider();
 
     try {
-      // Step 1: Firebase popup → get Google ID token
       const result = await signInWithPopup(auth, provider);
       const idToken = await result.user.getIdToken();
+      const backendAuth = await signInWithBackend(idToken);
 
-      // Step 2: Hand off to your backend
-      const res = await fetch("http://localhost:8080/api/v1/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? "Authentication failed");
-      }
-
-      const session: AuthSession = await res.json();
-
-      // Step 3: Persist YOUR tokens
-      localStorage.setItem(TOKEN_KEY, session.accessToken);
-      localStorage.setItem(REFRESH_KEY, session.refreshToken);
-
-      // Step 4: Kill the Firebase session — we're done with it
       await auth.signOut();
+
+      const session: AuthSession = {
+        message: backendAuth.message ?? "sign-in successful",
+        user: {
+          id: result.user.uid,
+          email: result.user.email ?? "",
+          name: result.user.displayName ?? "",
+          avatar: result.user.photoURL ?? "",
+          provider: "google",
+        },
+      };
 
       setUser(session.user);
       setStatus("success");
-
       return session;
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Unknown error occurred";
+      await auth.signOut().catch(() => {});
 
-      // Don't surface Firebase popup-closed as an error
       if ((err as { code?: string })?.code === "auth/popup-closed-by-user") {
         setStatus("idle");
         return null;
       }
 
+      const firebaseErr = err as { code?: string };
+      const message =
+        FIREBASE_ERRORS[firebaseErr?.code ?? ""] ??
+        (err instanceof Error ? err.message : "Unknown error occurred");
       setError(message);
       setStatus("error");
       return null;
@@ -97,8 +82,6 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
     setUser(null);
     setStatus("idle");
     setError(null);
