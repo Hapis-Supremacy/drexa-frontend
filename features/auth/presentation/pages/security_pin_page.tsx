@@ -8,6 +8,7 @@ export function SecurityPin() {
     const router = useRouter()
     const [pin, setPin] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const press = (digit: string) => {
         setPin((p) => (p.length < 6 ? p + digit : p))
@@ -18,15 +19,28 @@ export function SecurityPin() {
     const onConfirm = async () => {
         if (pin.length < 6 || isSubmitting) return
         setIsSubmitting(true)
+        setError(null)
 
-        localStorage.setItem("kyc_pin", pin)
-        fetch("http://localhost:8080/api/v1/kyc/pin", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pin }),
-        }).catch(() => {})
+        try {
+            const res = await fetch("/api/v1/auth/pin/set", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ pin }),
+            })
 
-        router.push("/register/complete")
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}))
+                throw new Error(body?.error ?? "Failed to save PIN")
+            }
+
+            localStorage.setItem("kyc_pin", pin)
+            router.push("/register/complete")
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to save PIN")
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -103,6 +117,7 @@ export function SecurityPin() {
                         >
                             {isSubmitting ? "Saving…" : "Confirm PIN"}
                         </button>
+                        {error && <p className="text-red-400 text-sm font-semibold">{error}</p>}
                     </div>
 
                 </div>

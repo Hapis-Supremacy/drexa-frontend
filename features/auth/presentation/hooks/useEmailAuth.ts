@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { auth } from "@/features/core/store/firebase";
+import { signInWithBackend } from "./backendAuth";
 
 interface AuthUser {
   id: string;
@@ -11,8 +12,7 @@ interface AuthUser {
 }
 
 interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
+  message: string;
   user: AuthUser;
 }
 
@@ -27,9 +27,6 @@ interface UseEmailAuthReturn {
   logout: () => void;
 }
 
-const TOKEN_KEY = "access_token";
-const REFRESH_KEY = "refresh_token";
-
 const FIREBASE_ERRORS: Record<string, string> = {
   "auth/user-not-found": "Invalid email or password",
   "auth/wrong-password": "Invalid email or password",
@@ -37,6 +34,7 @@ const FIREBASE_ERRORS: Record<string, string> = {
   "auth/invalid-email": "Invalid email address",
   "auth/user-disabled": "This account has been disabled",
   "auth/too-many-requests": "Too many attempts. Please try again later",
+  "auth/operation-not-allowed": "Email/password sign-in is not enabled in Firebase Authentication",
 };
 
 export const useEmailAuth = (): UseEmailAuthReturn => {
@@ -49,34 +47,25 @@ export const useEmailAuth = (): UseEmailAuthReturn => {
     setError(null);
 
     try {
-      // Step 1: Firebase verifies credentials and issues an ID token
       const result = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await result.user.getIdToken();
+      const backendAuth = await signInWithBackend(idToken);
 
-      // Step 2: Our backend verifies the ID token and returns a JWT
-      const res = await fetch("http://localhost:8080/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-
-      // Done with Firebase — kill the session regardless of backend result
       await auth.signOut();
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? "Authentication failed");
-      }
-
-      const session: AuthSession = await res.json();
-
-      localStorage.setItem(TOKEN_KEY, session.accessToken);
-      localStorage.setItem(REFRESH_KEY, session.refreshToken);
+      const session: AuthSession = {
+        message: backendAuth.message ?? "sign-in successful",
+        user: {
+          id: result.user.uid,
+          email: result.user.email ?? email,
+          name: result.user.displayName ?? "",
+          avatar: result.user.photoURL ?? "",
+        },
+      };
 
       setUser(session.user);
       setStatus("success");
       return session;
-
     } catch (err: unknown) {
       await auth.signOut().catch(() => {});
 
@@ -92,8 +81,6 @@ export const useEmailAuth = (): UseEmailAuthReturn => {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
     setUser(null);
     setStatus("idle");
     setError(null);
