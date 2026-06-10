@@ -1,14 +1,16 @@
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
   TIcon, CoinBadge, Panel, Delta, Pill, AreaChart,
   btnBrand, btnGhost, linkBtn,
 } from '@/features/core/presentation/components/primitives';
-import { COINS, ABOUT, coinOf, holdingRows } from '@/features/core/domain/data/mock_data';
+import { ABOUT, coinOf, holdingRows } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum, fmtCompact } from '@/features/core/domain/data/trading_utils';
+import { fetchMarkets, fetchChartData, cgToCoinData } from '@/lib/coingecko';
+import type { CoinData } from '@/features/core/domain/model';
 
 function Field({ label, suffix, value, placeholder, readOnly }: { label: string; suffix: string; value: string; placeholder: string; readOnly?: boolean }) {
   return (
@@ -33,9 +35,8 @@ function AssetStat({ label, value, sub }: { label: string; value: string; sub?: 
   );
 }
 
-function QuickTicket({ sym }: { sym: string }) {
+function QuickTicket({ coin }: { coin: CoinData }) {
   const router = useRouter();
-  const coin = coinOf(sym);
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [pct, setPct] = useState(0);
   const buy = side === 'buy';
@@ -81,13 +82,38 @@ function QuickTicket({ sym }: { sym: string }) {
 
 export function AssetPage({ sym }: { sym: string }) {
   const router = useRouter();
-  const coin = coinOf(sym);
-  const up = coin.ch >= 0;
+  const mockCoin = coinOf(sym);
+
+  const [coin, setCoin] = useState<CoinData>(mockCoin);
+  const [chartData, setChartData] = useState<number[]>(
+    () => series(mockCoin.seed + 5 * 3, 70, 0.05, mockCoin.price * 0.9)
+  );
+  const [chartLoading, setChartLoading] = useState(false);
   const [range, setRange] = useState('1W');
   const ranges = ['1H', '1D', '1W', '1M', '1Y'];
-  const curve = useMemo(() => series(coin.seed + range.length * 3, 70, 0.05, coin.price * 0.9), [sym, range]);
-  const curveUp = curve[curve.length - 1] >= curve[0];
+
+  const up = coin.ch >= 0;
+  const curveUp = chartData.length > 1 && chartData[chartData.length - 1] >= chartData[0];
   const hold = holdingRows().find(h => h.sym === sym);
+
+  // Fetch live price + stats on mount
+  useEffect(() => {
+    fetchMarkets()
+      .then(data => {
+        const live = data.map(cgToCoinData).find(c => c.sym === sym);
+        if (live) setCoin(live);
+      })
+      .catch(() => {});
+  }, [sym]);
+
+  // Fetch chart data when sym or range changes
+  useEffect(() => {
+    setChartLoading(true);
+    fetchChartData(sym, range)
+      .then(data => { if (data.length > 1) setChartData(data); })
+      .catch(() => {})
+      .finally(() => setChartLoading(false));
+  }, [sym, range]);
 
   return (
     <TradingLayout>
@@ -104,7 +130,9 @@ export function AssetPage({ sym }: { sym: string }) {
               <h1 style={{ font: 'var(--h1)', color: 'var(--fg)' }}>{coin.name}</h1>
               <Pill>{coin.sym}/USDT</Pill>
             </div>
-            <div style={{ font: 'var(--small)', color: 'var(--fg-3)', marginTop: 2 }}>Rank #{COINS.indexOf(coin) + 1} · {fmtCompact(coin.mcap)} market cap</div>
+            <div style={{ font: 'var(--small)', color: 'var(--fg-3)', marginTop: 2 }}>
+              {coin.rank ? `Rank #${coin.rank}` : `#${mockCoin.sym}`} · {fmtCompact(coin.mcap)} market cap
+            </div>
           </div>
           <div style={{ flex: 1 }} />
           <div style={{ textAlign: 'right' }}>
@@ -128,7 +156,9 @@ export function AssetPage({ sym }: { sym: string }) {
                   }}>{r}</button>
                 ))}
               </div>
-              <AreaChart data={curve} up={curveUp} height={300} fillId="assetCurve" />
+              <div style={{ opacity: chartLoading ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+                <AreaChart data={chartData} up={curveUp} height={300} fillId="assetCurve" />
+              </div>
             </Panel>
 
             {/* stats */}
@@ -187,7 +217,7 @@ export function AssetPage({ sym }: { sym: string }) {
                 <div style={{ font: 'var(--small)', color: 'var(--fg-3)', lineHeight: 1.5 }}>You don&apos;t hold any {coin.sym} yet. Buy below to open a position.</div>
               )}
             </Panel>
-            <QuickTicket sym={sym} />
+            <QuickTicket coin={coin} />
           </div>
         </div>
       </div>

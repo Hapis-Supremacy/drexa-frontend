@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
@@ -11,6 +11,15 @@ import {
   COINS, DONUT_COLORS, ACTIVITY, portfolioTotals, coinOf,
 } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum } from '@/features/core/domain/data/trading_utils';
+import { api } from '@/lib/api';
+
+interface Transaction {
+  TxID: string;
+  Type: 'deposit' | 'withdrawal';
+  Amount: number;
+  Status: 'pending' | 'completed' | 'failed';
+  CreatedAt: string;
+}
 
 function QuickAction({
   icon, label, onClick, brand,
@@ -49,6 +58,18 @@ export function HomePage() {
   const curve = useMemo(() => series(seedMap[range], lenMap[range], 0.05, tot.value * 0.86), [range]);
   const curveUp = curve[curve.length - 1] >= curve[0];
 
+  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  useEffect(() => {
+    api.get<{ balance: number }>('/wallet/balance')
+      .then(d => setWalletBalanceCents(d.balance))
+      .catch(() => {});
+    api.get<Transaction[]>('/wallet/transactions?limit=5&offset=0')
+      .then(txns => setTransactions(txns ?? []))
+      .catch(() => {});
+  }, []);
+
   const movers = [...COINS].sort((a, b) => b.ch - a.ch).slice(0, 5);
   const watch  = ['BTC', 'SOL', 'ETH', 'LINK'].map(coinOf);
 
@@ -76,9 +97,14 @@ export function HomePage() {
                 <div>
                   <div style={{ font: 'var(--small)', color: 'var(--fg-3)' }}>Total portfolio value</div>
                   <div style={{ font: '800 40px var(--font-num)', color: 'var(--fg)', letterSpacing: '-.02em', margin: '6px 0 8px', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(tot.value)}</div>
-                  <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ font: 'var(--small)', color: 'var(--fg-3)', display: 'inline-flex', gap: 6 }}>Today <Delta v={(tot.today / tot.value) * 100} icon /></span>
                     <span style={{ font: 'var(--small)', color: 'var(--fg-3)', display: 'inline-flex', gap: 6 }}>All-time <Delta v={tot.pnlPct} /></span>
+                    {walletBalanceCents !== null && (
+                      <span style={{ font: 'var(--small)', color: 'var(--fg-3)', display: 'inline-flex', gap: 6 }}>
+                        Cash <span style={{ font: '700 13px var(--font-num)', color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(walletBalanceCents / 100)}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 3 }}>
@@ -205,24 +231,46 @@ export function HomePage() {
               <button onClick={() => router.push('/orders')} style={linkBtn}>All<TIcon name="chevRight" size={13} /></button>
             </div>
             <div>
-              {ACTIVITY.map((x, i) => {
-                const inflow = x.dir === 'in';
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderTop: '1px solid var(--border-hairline)' }}>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: inflow ? 'var(--up-soft)' : 'var(--down-soft)' }}>
-                      <TIcon name={inflow ? 'arrowDown' : 'arrowUp'} size={15} color={inflow ? 'var(--up)' : 'var(--down)'} />
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: '700 13px var(--font-sans)', color: 'var(--fg)' }}>{x.t} {x.sym}</div>
-                      <div style={{ font: 'var(--nano)', color: 'var(--fg-3)' }}>{x.time}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ font: '700 13px var(--font-num)', color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(x.val)}</div>
-                      <div style={{ font: '500 11px var(--font-num)', color: 'var(--fg-3)' }}>{fmtNum(x.amt, x.amt < 1 ? 4 : 2)} {x.sym}</div>
-                    </div>
-                  </div>
-                );
-              })}
+              {transactions.length > 0
+                ? transactions.map(tx => {
+                    const inflow = tx.Type === 'deposit';
+                    const usd = tx.Amount / 100;
+                    const date = new Date(tx.CreatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return (
+                      <div key={tx.TxID} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderTop: '1px solid var(--border-hairline)' }}>
+                        <span style={{ width: 32, height: 32, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: inflow ? 'var(--up-soft)' : 'var(--down-soft)' }}>
+                          <TIcon name={inflow ? 'arrowDown' : 'arrowUp'} size={15} color={inflow ? 'var(--up)' : 'var(--down)'} />
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ font: '700 13px var(--font-sans)', color: 'var(--fg)', textTransform: 'capitalize' }}>{tx.Type}d USD</div>
+                          <div style={{ font: 'var(--nano)', color: 'var(--fg-3)' }}>{date}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ font: '700 13px var(--font-num)', color: inflow ? 'var(--up)' : 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{inflow ? '+' : '-'}{fmtUSD(usd)}</div>
+                          <div style={{ font: '500 11px var(--font-num)', color: 'var(--fg-3)', textTransform: 'capitalize' }}>{tx.Status}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                : ACTIVITY.map((x, i) => {
+                    const inflow = x.dir === 'in';
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderTop: '1px solid var(--border-hairline)' }}>
+                        <span style={{ width: 32, height: 32, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: inflow ? 'var(--up-soft)' : 'var(--down-soft)' }}>
+                          <TIcon name={inflow ? 'arrowDown' : 'arrowUp'} size={15} color={inflow ? 'var(--up)' : 'var(--down)'} />
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ font: '700 13px var(--font-sans)', color: 'var(--fg)' }}>{x.t} {x.sym}</div>
+                          <div style={{ font: 'var(--nano)', color: 'var(--fg-3)' }}>{x.time}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ font: '700 13px var(--font-num)', color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(x.val)}</div>
+                          <div style={{ font: '500 11px var(--font-num)', color: 'var(--fg-3)' }}>{fmtNum(x.amt, x.amt < 1 ? 4 : 2)} {x.sym}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+              }
             </div>
           </Panel>
         </div>

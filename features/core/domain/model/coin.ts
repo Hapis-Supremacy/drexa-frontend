@@ -8,6 +8,7 @@ export interface CoinData {
   supply: number;
   seed: number;
   spark: number[];
+  rank?: number;
 }
 
 export interface CoinStyle {

@@ -148,6 +148,7 @@ export function Pill({ children, tone = 'neutral' }: { children: React.ReactNode
 
 /* ── Sparkline ──────────────────────────────────────────────────── */
 export function Sparkline({ data, up, w = 96, h = 30 }: { data: number[]; up: boolean; w?: number; h?: number }) {
+  if (data.length < 2) return null;
   const col = up ? 'var(--up)' : 'var(--down)';
   const min = Math.min(...data), max = Math.max(...data), rng_ = max - min || 1;
   const pts = data.map((d, i) => `${(i / (data.length - 1)) * w},${h - ((d - min) / rng_) * h}`).join(' ');
@@ -177,6 +178,7 @@ export function AreaChart({
   showAxis?: boolean;
   fillId?: string;
 }) {
+  if (data.length < 2) return null;
   const W = 1000, H = height;
   const min = Math.min(...data), max = Math.max(...data), span = (max - min) || 1;
   const pad = span * 0.12;

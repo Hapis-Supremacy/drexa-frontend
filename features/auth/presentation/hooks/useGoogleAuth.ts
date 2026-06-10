@@ -24,19 +24,17 @@ const FIREBASE_ERRORS: Record<string, string> = {
 
 interface UseGoogleAuthReturn {
   status: AuthStatus;
-  user: AuthUser | null;
   error: string | null;
   isLoading: boolean;
-  login: () => Promise<AuthSession | null>;
-  logout: () => void;
+  login: () => Promise<boolean>;
+  logout: () => Promise<void>;
 }
 
 export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const [status, setStatus] = useState<AuthStatus>("idle");
-  const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const login = useCallback(async (): Promise<AuthSession | null> => {
+  const login = useCallback(async (): Promise<boolean> => {
     setStatus("loading");
     setError(null);
 
@@ -68,7 +66,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
       if ((err as { code?: string })?.code === "auth/popup-closed-by-user") {
         setStatus("idle");
-        return null;
+        return false;
       }
 
       const firebaseErr = err as { code?: string };
@@ -77,7 +75,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
         (err instanceof Error ? err.message : "Unknown error occurred");
       setError(message);
       setStatus("error");
-      return null;
+      return false;
     }
   }, []);
 

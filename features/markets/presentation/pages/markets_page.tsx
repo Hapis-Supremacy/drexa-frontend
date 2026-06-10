@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
@@ -9,25 +9,34 @@ import {
 } from '@/features/core/presentation/components/primitives';
 import { COINS } from '@/features/core/domain/data/mock_data';
 import { fmtUSD, fmtCompact } from '@/features/core/domain/data/trading_utils';
+import { fetchMarkets, cgToCoinData } from '@/lib/coingecko';
+import type { CoinData } from '@/features/core/domain/model';
 
 export function MarketsPage() {
   const router = useRouter();
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
   const [fav, setFav] = useState<Set<string>>(() => new Set(['BTC', 'SOL']));
+  const [coins, setCoins] = useState<CoinData[]>(COINS);
   const toggleFav = (s: string) => setFav(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; });
+
+  useEffect(() => {
+    fetchMarkets()
+      .then(data => setCoins(data.map(cgToCoinData)))
+      .catch(() => {});
+  }, []);
 
   const tabs: [string, string][] = [
     ['all', 'All assets'], ['gainers', 'Top gainers'], ['losers', 'Top losers'], ['favorites', 'Watchlist'],
   ];
 
-  let rows = [...COINS];
+  let rows = [...coins];
   if (q.trim()) rows = rows.filter(c => (c.sym + ' ' + c.name).toLowerCase().includes(q.toLowerCase()));
   if (tab === 'gainers')   rows = rows.filter(c => c.ch > 0).sort((a, b) => b.ch - a.ch);
   if (tab === 'losers')    rows = rows.filter(c => c.ch < 0).sort((a, b) => a.ch - b.ch);
   if (tab === 'favorites') rows = rows.filter(c => fav.has(c.sym));
 
-  const movers = [...COINS].sort((a, b) => b.ch - a.ch).slice(0, 4);
+  const movers = [...coins].sort((a, b) => b.ch - a.ch).slice(0, 4);
 
   return (
     <TradingLayout>
@@ -35,7 +44,7 @@ export function MarketsPage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ font: 'var(--h1)', color: 'var(--fg)', letterSpacing: '-.01em' }}>Markets</h1>
-            <p style={{ font: 'var(--small)', color: 'var(--fg-3)', marginTop: 4 }}>Spot trading · {COINS.length} pairs · settled in USDT</p>
+            <p style={{ font: 'var(--small)', color: 'var(--fg-3)', marginTop: 4 }}>Spot trading · {coins.length} pairs · settled in USDT</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 14px', width: 260, background: 'var(--surface-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)' }}>
             <TIcon name="search" size={16} color="var(--fg-3)" />
@@ -96,7 +105,7 @@ export function MarketsPage() {
                 <th style={thR}>24h change</th>
                 <th style={thR}>24h volume</th>
                 <th style={thR}>Market cap</th>
-                <th style={thR}>Last 24h</th>
+                <th style={thR}>Last 7d</th>
                 <th style={{ ...thR, width: 130 }}></th>
               </tr>
             </thead>

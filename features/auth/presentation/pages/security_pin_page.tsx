@@ -73,6 +73,10 @@ export function SecurityPin() {
                                 />
                             ))}
                         </div>
+
+                        {error && (
+                            <p className="text-red-400 text-sm font-semibold">{error}</p>
+                        )}
                     </div>
 
                     {/* Number pad + confirm */}
