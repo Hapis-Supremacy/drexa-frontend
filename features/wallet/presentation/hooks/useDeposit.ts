@@ -11,6 +11,11 @@ export const stripePromise: Promise<Stripe | null> | null = process.env.NEXT_PUB
 
 export type DepositStep = 'amount' | 'payment' | 'confirming' | 'success' | 'error';
 
+function getRedirectClientSecret(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get('payment_intent_client_secret');
+}
+
 interface UseDepositReturn {
   step: DepositStep;
   usdAmt: string;
@@ -28,21 +33,18 @@ interface UseDepositReturn {
 }
 
 export function useDeposit(onRefresh: () => void): UseDepositReturn {
-  const [step, setStep] = useState<DepositStep>('amount');
+  const redirectClientSecret = getRedirectClientSecret();
+  const [step, setStep] = useState<DepositStep>(redirectClientSecret ? 'confirming' : 'amount');
   const [usdAmt, setUsdAmt] = useState('500');
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(redirectClientSecret);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const secret = params.get('payment_intent_client_secret');
-    if (secret) {
-      setClientSecret(secret);
-      setStep('confirming');
+    if (redirectClientSecret) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+  }, [redirectClientSecret]);
 
   const dollars = parseFloat(usdAmt) || 0;
   const valid = dollars >= 10;

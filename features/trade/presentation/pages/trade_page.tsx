@@ -4,11 +4,11 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
-  TIcon, CoinBadge, Panel, Delta, AreaChart,
+  TIcon, CoinBadge, Panel, Delta,
   linkBtn, thL, thR, tdL, tdR,
 } from '@/features/core/presentation/components/primitives';
 import { COINS, OPEN_ORDERS, ORDER_HISTORY, coinOf } from '@/features/core/domain/data/mock_data';
-import { rng, series, fmtUSD, fmtNum, fmtCompact } from '@/features/core/domain/data/trading_utils';
+import { rng, fmtUSD, fmtNum, fmtCompact } from '@/features/core/domain/data/trading_utils';
 
 /* ── Candle chart ───────────────────────────────────────────────── */
 interface Candle { o: number; h: number; l: number; c: number; }

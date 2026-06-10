@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -17,15 +18,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     const checkSession = async () => {
       try {
-        const res = await fetch("/api/v1/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-        });
-
-        if (!res.ok) {
-          throw new Error("unauthorized");
-        }
-
+        await api.post("/auth/refresh", undefined, { retryOnUnauthorized: false });
         if (isMounted) setIsAllowed(true);
       } catch {
         if (!isMounted) return;

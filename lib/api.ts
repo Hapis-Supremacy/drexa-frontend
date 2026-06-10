@@ -1,18 +1,33 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1').replace(/\/+$/, '')
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const opts: RequestInit = {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> ?? {}) },
-    ...init,
+type ApiRequestInit = RequestInit & {
+  retryOnUnauthorized?: boolean
+}
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}/${path.replace(/^\/+/, '')}`
+}
+
+async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { retryOnUnauthorized = true, ...requestInit } = init
+  const headers = new Headers(requestInit.headers)
+
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
   }
 
-  let res = await fetch(BASE + path, opts)
+  const opts: RequestInit = {
+    ...requestInit,
+    credentials: 'include',
+    headers,
+  }
 
-  if (res.status === 401) {
-    const refreshed = await fetch(BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
+  let res = await fetch(apiUrl(path), opts)
+
+  if (retryOnUnauthorized && res.status === 401) {
+    const refreshed = await fetch(apiUrl('/auth/refresh'), { method: 'POST', credentials: 'include' })
     if (refreshed.ok) {
-      res = await fetch(BASE + path, opts)
+      res = await fetch(apiUrl(path), opts)
     }
   }
 
@@ -26,9 +41,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body?: unknown) =>
+  get: <T>(path: string, init?: ApiRequestInit) => request<T>(path, { ...init, method: 'GET' }),
+  post: <T>(path: string, body?: unknown, init?: ApiRequestInit) =>
     request<T>(path, {
+      ...init,
       method: 'POST',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),

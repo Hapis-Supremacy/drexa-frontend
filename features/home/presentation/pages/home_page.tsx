@@ -1,25 +1,26 @@
 "use client"
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
   TIcon, CoinBadge, Panel, SectionTitle, Delta, Sparkline, AreaChart,
-  linkBtn, btnBrand, btnGhost, tdL, tdR,
+  linkBtn, tdL, tdR,
 } from '@/features/core/presentation/components/primitives';
 import {
   COINS, DONUT_COLORS, ACTIVITY, portfolioTotals, coinOf,
 } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum } from '@/features/core/domain/data/trading_utils';
-import { api } from '@/lib/api';
+import { useWalletData } from '@/features/wallet/presentation/hooks/useWalletData';
 
-interface Transaction {
-  TxID: string;
-  Type: 'deposit' | 'withdrawal';
-  Amount: number;
-  Status: 'pending' | 'completed' | 'failed';
-  CreatedAt: string;
-}
+const ranges = ['1D', '1W', '1M', '1Y', 'All'];
+const rangeConfig: Record<string, { seed: number; length: number }> = {
+  '1D': { seed: 3, length: 30 },
+  '1W': { seed: 7, length: 48 },
+  '1M': { seed: 11, length: 60 },
+  '1Y': { seed: 23, length: 80 },
+  All: { seed: 41, length: 90 },
+};
 
 function QuickAction({
   icon, label, onClick, brand,
@@ -50,25 +51,15 @@ function QuickAction({
 
 export function HomePage() {
   const router = useRouter();
-  const tot = useMemo(portfolioTotals, []);
+  const tot = useMemo(() => portfolioTotals(), []);
   const [range, setRange] = useState('1W');
-  const ranges = ['1D', '1W', '1M', '1Y', 'All'];
-  const seedMap: Record<string, number> = { '1D': 3, '1W': 7, '1M': 11, '1Y': 23, 'All': 41 };
-  const lenMap:  Record<string, number> = { '1D': 30, '1W': 48, '1M': 60, '1Y': 80, 'All': 90 };
-  const curve = useMemo(() => series(seedMap[range], lenMap[range], 0.05, tot.value * 0.86), [range]);
+  const curve = useMemo(() => {
+    const cfg = rangeConfig[range];
+    return series(cfg.seed, cfg.length, 0.05, tot.value * 0.86);
+  }, [range, tot.value]);
   const curveUp = curve[curve.length - 1] >= curve[0];
 
-  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  useEffect(() => {
-    api.get<{ balance: number }>('/wallet/balance')
-      .then(d => setWalletBalanceCents(d.balance))
-      .catch(() => {});
-    api.get<Transaction[]>('/wallet/transactions?limit=5&offset=0')
-      .then(txns => setTransactions(txns ?? []))
-      .catch(() => {});
-  }, []);
+  const { walletBalanceCents, transactions } = useWalletData(5);
 
   const movers = [...COINS].sort((a, b) => b.ch - a.ch).slice(0, 5);
   const watch  = ['BTC', 'SOL', 'ETH', 'LINK'].map(coinOf);
@@ -233,21 +224,21 @@ export function HomePage() {
             <div>
               {transactions.length > 0
                 ? transactions.map(tx => {
-                    const inflow = tx.Type === 'deposit';
-                    const usd = tx.Amount / 100;
-                    const date = new Date(tx.CreatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const inflow = tx.type === 'deposit';
+                    const usd = tx.amount / 100;
+                    const date = new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return (
-                      <div key={tx.TxID} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderTop: '1px solid var(--border-hairline)' }}>
+                      <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderTop: '1px solid var(--border-hairline)' }}>
                         <span style={{ width: 32, height: 32, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: inflow ? 'var(--up-soft)' : 'var(--down-soft)' }}>
                           <TIcon name={inflow ? 'arrowDown' : 'arrowUp'} size={15} color={inflow ? 'var(--up)' : 'var(--down)'} />
                         </span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ font: '700 13px var(--font-sans)', color: 'var(--fg)', textTransform: 'capitalize' }}>{tx.Type}d USD</div>
+                          <div style={{ font: '700 13px var(--font-sans)', color: 'var(--fg)', textTransform: 'capitalize' }}>{tx.type}d USD</div>
                           <div style={{ font: 'var(--nano)', color: 'var(--fg-3)' }}>{date}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ font: '700 13px var(--font-num)', color: inflow ? 'var(--up)' : 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{inflow ? '+' : '-'}{fmtUSD(usd)}</div>
-                          <div style={{ font: '500 11px var(--font-num)', color: 'var(--fg-3)', textTransform: 'capitalize' }}>{tx.Status}</div>
+                          <div style={{ font: '500 11px var(--font-num)', color: 'var(--fg-3)', textTransform: 'capitalize' }}>{tx.status}</div>
                         </div>
                       </div>
                     );

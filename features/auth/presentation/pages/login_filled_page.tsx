@@ -107,7 +107,7 @@ export function LoginFilledPage() {
 
                         <div className="flex flex-col items-center mt-4">
                             <h1 className="font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#00FFA3] to-[#3B82F6]">
-                                Can't log in?
+                                {"Can't log in?"}
                             </h1>
                         </div>
 

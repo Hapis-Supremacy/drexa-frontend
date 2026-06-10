@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { api } from "@/lib/api"
 
 export function SecurityPin() {
     const router = useRouter()
@@ -22,18 +23,7 @@ export function SecurityPin() {
         setError(null)
 
         try {
-            const res = await fetch("/api/v1/auth/pin/set", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ pin }),
-            })
-
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}))
-                throw new Error(body?.error ?? "Failed to save PIN")
-            }
-
+            await api.post("/auth/pin/set", { pin })
             localStorage.setItem("kyc_pin", pin)
             router.push("/register/complete")
         } catch (err) {
