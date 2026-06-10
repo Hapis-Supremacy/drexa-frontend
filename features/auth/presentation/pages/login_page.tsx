@@ -32,12 +32,12 @@ export function LoginPage() {
 
     const onSubmit = async (data: loginData) => {
         const session = await emailAuth.login(data.email, data.password);
-        if (session) router.push("/dashboard");
+        if (session) router.push("/home");
     };
 
     const onGoogleLogin = async () => {
         const session = await googleAuth.login();
-        if (session) router.push("/dashboard");
+        if (session) router.push("/home");
     };
 
     const isSubmitting = emailAuth.isLoading || googleAuth.isLoading;

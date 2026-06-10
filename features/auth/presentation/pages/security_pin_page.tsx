@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { api } from "@/lib/api"
 
 export function SecurityPin() {
     const router = useRouter()
@@ -23,10 +22,23 @@ export function SecurityPin() {
         setError(null)
 
         try {
-            await api.post("/auth/pin/set", { pin })
+            const res = await fetch("/api/v1/auth/pin/set", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ pin }),
+            })
+
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}))
+                throw new Error(body?.error ?? "Failed to save PIN")
+            }
+
+            localStorage.setItem("kyc_pin", pin)
             router.push("/register/complete")
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : "Failed to set PIN. Please try again.")
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to save PIN")
+        } finally {
             setIsSubmitting(false)
         }
     }
@@ -47,9 +59,10 @@ export function SecurityPin() {
                                 onClick={() => router.back()}
                             />
                             <h1 className="font-bold text-2xl flex-1 text-center">Set Your Security PIN</h1>
-                            <div className="w-7" />
+                            <div className="w-7" /> {/* spacer to center the title */}
                         </div>
 
+                        {/* PIN dots */}
                         <div className="flex justify-center items-center gap-4">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div
@@ -66,6 +79,7 @@ export function SecurityPin() {
                         )}
                     </div>
 
+                    {/* Number pad + confirm */}
                     <div className="flex flex-col gap-6 w-full">
                         <div className="grid grid-cols-3 gap-6 text-4xl sm:text-3xl font-semibold">
                             {["1","2","3","4","5","6","7","8","9"].map((d) => (
@@ -79,6 +93,7 @@ export function SecurityPin() {
                                 </button>
                             ))}
 
+                            {/* empty cell */}
                             <div />
 
                             <button
@@ -106,6 +121,7 @@ export function SecurityPin() {
                         >
                             {isSubmitting ? "Saving…" : "Confirm PIN"}
                         </button>
+                        {error && <p className="text-red-400 text-sm font-semibold">{error}</p>}
                     </div>
 
                 </div>

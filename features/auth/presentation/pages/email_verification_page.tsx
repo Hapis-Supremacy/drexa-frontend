@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
 
 const verificationSchema = z.object({
   code: z
@@ -17,9 +16,13 @@ const verificationSchema = z.object({
 
 type FormData = z.infer<typeof verificationSchema>;
 
+const TOKEN_KEY = "access_token";
+const REFRESH_KEY = "refresh_token";
+
 export function EmailVerificationPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   const {
     register,
@@ -34,24 +37,52 @@ export function EmailVerificationPage() {
   const code = watch("code", "");
 
   const onSubmit = async (data: FormData) => {
-    const userId = localStorage.getItem("pending_uid");
-    if (!userId) {
-      setError("code", { type: "manual", message: "Session expired. Please register again." });
-      return;
-    }
-
+    const email = localStorage.getItem("pending_email");
     setIsSubmitting(true);
 
     try {
-      await api.post("/auth/verify/phone", { user_id: userId, otp: data.code });
+      const res = await fetch("http://localhost:8080/api/v1/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp: data.code }),
+      });
 
-      localStorage.removeItem("pending_uid");
+      if (!res.ok) {
+        setError("code", { type: "manual", message: "Invalid or expired code" });
+        return;
+      }
+
+      // If the backend returns a JWT session on verification, store it
+      const session = await res.json().catch(() => null);
+      if (session?.accessToken) {
+        localStorage.setItem(TOKEN_KEY, session.accessToken);
+        localStorage.setItem(REFRESH_KEY, session.refreshToken);
+      }
+
+      localStorage.removeItem("pending_email");
       router.push("/register/details");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Invalid or expired code";
-      setError("code", { type: "manual", message: msg });
+
+    } catch {
+      setError("code", { type: "manual", message: "Server error. Try again." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const onResend = async () => {
+    const email = localStorage.getItem("pending_email");
+    setIsResending(true);
+
+    try {
+      await fetch("http://localhost:8080/api/v1/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      // silently fail — user can try again
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -66,9 +97,9 @@ export function EmailVerificationPage() {
           className="z-10 bg-linear-to-b from-[#15182B] to-[#1C2140] text-center flex flex-col gap-6 items-center p-6 md:p-8 rounded-[30px] shadow-2xl"
         >
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-bold text-white">Verify Your Phone</h1>
+            <h1 className="text-3xl font-bold text-white">Verify Your Email Address</h1>
             <p className="text-gray-400 font-bold text-sm">
-              {"We've sent a 4-digit verification code via SMS. Please enter it below."}
+              {"We've sent a 4-digit verification code to your email. Please enter it below."}
             </p>
           </div>
 
@@ -109,6 +140,17 @@ export function EmailVerificationPage() {
               className="bg-gradient-to-r from-[#00FFA3] to-[#3B82F6] py-4 px-8 rounded-lg text-white font-bold w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Verifying..." : "Continue"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onResend}
+              disabled={isResending}
+              className="bg-transparent py-4 px-8 rounded-lg text-white font-bold w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#00FFA3] to-[#3B82F6]">
+                {isResending ? "Sending..." : "Resend code"}
+              </span>
             </button>
           </div>
         </form>
