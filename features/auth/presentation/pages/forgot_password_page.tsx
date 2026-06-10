@@ -2,13 +2,11 @@
 
 import { ArrowLeft, CircleAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { api } from "@/lib/api"
 
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-
-// dummy email
-const emailDummy = "example@gmail.com"
 
 // schema
 const forgotPassSchema = z.object({
@@ -35,21 +33,8 @@ export function ForgotPasswordPage() {
 
    const onSubmit = async (data: FormData) => {
     try {
-        const res = await fetch("/api/v1/auth/forgot-password", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                email: data.email,
-            }),
-        })
-        
-        if (res.ok) {
-            console.log("Reset email requested")
-
-            router.push("/auth/login/reset_password")
-        }
+        await api.post("/auth/forgot-password", { email: data.email })
+        router.push("/auth/login/reset_password")
     } catch (err) {
         console.error("Request failed:", err)
 

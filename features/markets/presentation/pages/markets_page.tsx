@@ -18,7 +18,15 @@ export function MarketsPage() {
   const [q, setQ] = useState('');
   const [fav, setFav] = useState<Set<string>>(() => new Set(['BTC', 'SOL']));
   const [coins, setCoins] = useState<CoinData[]>(COINS);
-  const toggleFav = (s: string) => setFav(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; });
+  const toggleFav = (s: string) => setFav(prev => {
+    const next = new Set(prev);
+    if (next.has(s)) {
+      next.delete(s);
+    } else {
+      next.add(s);
+    }
+    return next;
+  });
 
   useEffect(() => {
     fetchMarkets()

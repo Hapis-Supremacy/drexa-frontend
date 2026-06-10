@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import type { FirebaseError } from "firebase/app";
 import { auth } from "@/features/core/store/firebase";
 import { signInWithBackend } from "./backendAuth";
 
@@ -24,17 +25,19 @@ const FIREBASE_ERRORS: Record<string, string> = {
 
 interface UseGoogleAuthReturn {
   status: AuthStatus;
+  user: AuthUser | null;
   error: string | null;
   isLoading: boolean;
-  login: () => Promise<boolean>;
-  logout: () => Promise<void>;
+  login: () => Promise<AuthSession | null>;
+  logout: () => void;
 }
 
 export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const [status, setStatus] = useState<AuthStatus>("idle");
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const login = useCallback(async (): Promise<boolean> => {
+  const login = useCallback(async (): Promise<AuthSession | null> => {
     setStatus("loading");
     setError(null);
 
@@ -66,16 +69,16 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
       if ((err as { code?: string })?.code === "auth/popup-closed-by-user") {
         setStatus("idle");
-        return false;
+        return null;
       }
 
-      const firebaseErr = err as { code?: string };
+      const firebaseErr = err as FirebaseError;
       const message =
-        FIREBASE_ERRORS[firebaseErr?.code ?? ""] ??
+        FIREBASE_ERRORS[firebaseErr?.code] ??
         (err instanceof Error ? err.message : "Unknown error occurred");
       setError(message);
       setStatus("error");
-      return false;
+      return null;
     }
   }, []);
 

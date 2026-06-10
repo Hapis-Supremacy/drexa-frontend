@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { TIcon, btnGhost } from './primitives';
 import { portfolioTotals } from '@/features/core/domain/data/mock_data';
 import { fmtUSD } from '@/features/core/domain/data/trading_utils';
+import { api } from '@/lib/api';
 
 const NAV_ITEMS = [
   { id: 'home',      label: 'Home',      icon: 'home'   as const, href: '/home'      },
@@ -31,10 +32,7 @@ export function TopNav() {
   const bal     = portfolioTotals().value;
 
   const onLogout = async () => {
-    await fetch('/api/v1/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
+    await api.post('/auth/logout').catch(() => {});
     router.replace('/login');
   };
 

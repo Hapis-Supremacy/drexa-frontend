@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 const verificationSchema = z.object({
   code: z
@@ -15,6 +16,11 @@ const verificationSchema = z.object({
 });
 
 type FormData = z.infer<typeof verificationSchema>;
+
+type VerificationSession = {
+  accessToken?: string;
+  refreshToken?: string;
+};
 
 const TOKEN_KEY = "access_token";
 const REFRESH_KEY = "refresh_token";
@@ -41,20 +47,8 @@ export function EmailVerificationPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("http://localhost:8080/api/v1/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: data.code }),
-      });
-
-      if (!res.ok) {
-        setError("code", { type: "manual", message: "Invalid or expired code" });
-        return;
-      }
-
-      // If the backend returns a JWT session on verification, store it
-      const session = await res.json().catch(() => null);
-      if (session?.accessToken) {
+      const session = await api.post<VerificationSession>("/auth/verify-email", { email, otp: data.code });
+      if (session?.accessToken && session.refreshToken) {
         localStorage.setItem(TOKEN_KEY, session.accessToken);
         localStorage.setItem(REFRESH_KEY, session.refreshToken);
       }
@@ -74,11 +68,7 @@ export function EmailVerificationPage() {
     setIsResending(true);
 
     try {
-      await fetch("http://localhost:8080/api/v1/auth/resend-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      await api.post("/auth/resend-otp", { email });
     } catch {
       // silently fail — user can try again
     } finally {
