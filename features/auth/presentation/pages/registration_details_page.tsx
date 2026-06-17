@@ -10,6 +10,7 @@ import { z } from "zod"
 
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { api } from "@/lib/api"
 import { format } from "date-fns"
 
 // schema
@@ -55,12 +56,9 @@ export function RegistrationDetailsPage() {
 
         setDateError(null)
 
-        localStorage.setItem("kyc_details", JSON.stringify({ ...data, dob: date?.toISOString(), country }))
-        fetch("http://localhost:8080/api/v1/kyc/details", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...data, dob: date?.toISOString(), country }),
-        }).catch(() => {})
+        const details = { ...data, dob: date?.toISOString(), country }
+        localStorage.setItem("kyc_details", JSON.stringify(details))
+        api.post("/kyc/details", details).catch(() => {})
         router.push("/register/identity")
     }
 

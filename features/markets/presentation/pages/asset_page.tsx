@@ -93,7 +93,6 @@ export function AssetPage({ sym }: { sym: string }) {
   const [range, setRange] = useState('1W');
   const ranges = ['1H', '1D', '1W', '1M', '1Y'];
 
-  const up = coin.ch >= 0;
   const curveUp = chartData.length > 1 && chartData[chartData.length - 1] >= chartData[0];
   const hold = holdingRows().find(h => h.sym === sym);
 
@@ -118,11 +117,18 @@ export function AssetPage({ sym }: { sym: string }) {
 
   // Fetch chart data when sym or range changes
   useEffect(() => {
-    setChartLoading(true);
+    let active = true;
+    const timer = window.setTimeout(() => setChartLoading(true), 0);
+
     fetchChartData(sym, range)
-      .then(data => { if (data.length > 1) setChartData(data); })
+      .then(data => { if (active && data.length > 1) setChartData(data); })
       .catch(() => {})
-      .finally(() => setChartLoading(false));
+      .finally(() => { if (active) setChartLoading(false); });
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [sym, range]);
 
   return (

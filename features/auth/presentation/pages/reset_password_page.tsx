@@ -2,16 +2,11 @@
 
 import { ArrowLeft, CircleAlert } from "lucide-react"
 
-import { useSearchParams } from "next/navigation"
-
-const searchParams = useSearchParams()
-const resetToken = searchParams.get("token")
-
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const resetSchema = z
     .object({
@@ -26,6 +21,9 @@ const resetSchema = z
 type resetData = z.infer<typeof resetSchema>
 
 export function ResetPasswordPage() {
+    const searchParams = useSearchParams()
+    const resetToken = searchParams.get("token")
+
     const {
         register,
         handleSubmit,
@@ -42,7 +40,7 @@ export function ResetPasswordPage() {
     const router = useRouter();
 
     const onSubmit = (data: resetData) => {
-        console.log("Password has been reset successfully", data)
+        console.log("Password has been reset successfully", { ...data, resetToken })
         router.push("/auth/login")
     }
 
