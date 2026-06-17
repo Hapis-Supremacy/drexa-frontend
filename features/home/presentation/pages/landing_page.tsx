@@ -1,7 +1,7 @@
 "use client";
 
 /* ── Drexa — landing homepage (logged-out marketing) ── */
-import { CSSProperties, ReactNode, useState } from "react";
+import { CSSProperties, ReactNode, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TopNav, Footer } from "@/features/core/presentation/components/app_shell";
@@ -99,25 +99,121 @@ function Hero() {
 }
 
 function FeaturedAssets() {
-  const feat = ["BTC", "ETH", "SOL", "LINK"].map(s => COIN(s)!);
+  const baseFeat = ["BTC", "ETH", "SOL", "LINK", "USDC", "ADA", "XRP", "DOT"].map(s => COIN(s)).filter(Boolean) as any[];
+  const feat = [...baseFeat, ...baseFeat, ...baseFeat];
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const startScrollLeft = useRef(0);
+  const dragAmount = useRef(0);
+  const lastTime = useRef(0);
+  const exactScrollLeft = useRef(0);
+  const speed = 0.05;
+
+  useEffect(() => {
+    let animationId: number;
+    lastTime.current = performance.now();
+    
+    if (scrollRef.current) {
+      exactScrollLeft.current = baseFeat.length * 300;
+      scrollRef.current.scrollLeft = exactScrollLeft.current;
+    }
+
+    const scroll = (time: number) => {
+      const delta = time - lastTime.current;
+      lastTime.current = time;
+
+      const el = scrollRef.current;
+      if (el && !isDragging.current) {
+        exactScrollLeft.current += speed * delta;
+        const setWidth = baseFeat.length * 300;
+        
+        if (exactScrollLeft.current >= setWidth * 2) {
+           exactScrollLeft.current -= setWidth;
+        } else if (exactScrollLeft.current <= 0) {
+           exactScrollLeft.current += setWidth;
+        }
+        
+        el.scrollLeft = exactScrollLeft.current;
+      }
+      animationId = requestAnimationFrame(scroll);
+    };
+    
+    animationId = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(animationId);
+  }, [baseFeat.length]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    startX.current = e.pageX - scrollRef.current!.offsetLeft;
+    startScrollLeft.current = exactScrollLeft.current;
+    dragAmount.current = 0;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current!.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+    dragAmount.current += Math.abs(e.movementX);
+    
+    const el = scrollRef.current!;
+    exactScrollLeft.current = startScrollLeft.current - walk;
+    
+    const setWidth = baseFeat.length * 300;
+    if (exactScrollLeft.current >= setWidth * 2) {
+      exactScrollLeft.current -= setWidth;
+      startScrollLeft.current -= setWidth;
+    } else if (exactScrollLeft.current <= 0) {
+      exactScrollLeft.current += setWidth;
+      startScrollLeft.current += setWidth;
+    }
+    
+    el.scrollLeft = exactScrollLeft.current;
+  };
+
   return (
     <section style={{ padding: "60px 0" }}>
       <Container>
         <SectionHead eyebrow="Featured" title="Popular assets to watch" action={<TextLink>View all markets</TextLink>} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
-          {feat.map(c => (
-            <Link key={c.sym} href={`/markets`} className="lift" style={{ textDecoration: "none" }}>
-              <Card pad={22} style={{ cursor: "pointer" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                  <CoinBadge sym={c.sym} size={44} />
-                  <div><div style={{ font: "600 16px var(--font)", color: "var(--text-hi)" }}>{c.name}</div><div style={{ font: "500 12.5px var(--font)", color: "var(--text-3)" }}>{c.sym}</div></div>
-                </div>
-                <div style={{ font: "600 24px var(--mono)", color: "var(--text-hi)", letterSpacing: "-.01em", fontVariantNumeric: "tabular-nums" }}>{fUSD(c.price, c.price < 1 ? 4 : 2)}</div>
-                <div style={{ marginTop: 6 }}><Delta v={c.ch} icon size={13.5} /></div>
-                <div style={{ margin: "16px -4px -2px" }}><Sparkline data={c.spark} up={c.ch >= 0} w={280} h={52} fill /></div>
-              </Card>
-            </Link>
-          ))}
+        <div style={{ 
+          overflow: "hidden", 
+          margin: "0 -16px", 
+          padding: "16px",
+          WebkitMaskImage: "linear-gradient(to right, transparent, black 5%, black 95%, transparent)",
+          maskImage: "linear-gradient(to right, transparent, black 5%, black 95%, transparent)"
+        }}>
+          <div 
+            ref={scrollRef}
+            className="hide-scroll"
+            style={{ display: "flex", gap: 20, width: "100%", overflowX: "auto", cursor: "grab" }}
+            onMouseDown={handleMouseDown}
+            onMouseLeave={() => isDragging.current = false}
+            onMouseUp={() => isDragging.current = false}
+            onMouseMove={handleMouseMove}
+          >
+            {feat.map((c, i) => (
+              <Link 
+                key={c.sym + "-" + i} 
+                href={`/markets`} 
+                className="lift" 
+                style={{ textDecoration: "none", width: 280, flexShrink: 0 }}
+                onClick={(e) => { if (dragAmount.current > 5) e.preventDefault(); }}
+                onDragStart={(e) => e.preventDefault()}
+              >
+                <Card pad={22} style={{ cursor: "inherit", height: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                    <CoinBadge sym={c.sym} size={44} />
+                    <div><div style={{ font: "600 16px var(--font)", color: "var(--text-hi)" }}>{c.name}</div><div style={{ font: "500 12.5px var(--font)", color: "var(--text-3)" }}>{c.sym}</div></div>
+                  </div>
+                  <div style={{ font: "600 24px var(--mono)", color: "var(--text-hi)", letterSpacing: "-.01em", fontVariantNumeric: "tabular-nums" }}>{fUSD(c.price, c.price < 1 ? 4 : 2)}</div>
+                  <div style={{ marginTop: 6 }}><Delta v={c.ch} icon size={13.5} /></div>
+                  <div style={{ margin: "16px -4px -2px" }}><Sparkline data={c.spark} up={c.ch >= 0} w={244} h={52} fill /></div>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </div>
       </Container>
     </section>
