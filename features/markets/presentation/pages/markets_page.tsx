@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
@@ -11,26 +11,32 @@ import { COINS } from '@/features/core/domain/data/mock_data';
 import { fmtUSD, fmtCompact } from '@/features/core/domain/data/trading_utils';
 import { fetchMarkets, cgToCoinData } from '@/lib/coingecko';
 import type { CoinData } from '@/features/core/domain/model';
+import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
 
 export function MarketsPage() {
   const router = useRouter();
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
   const [fav, setFav] = useState<Set<string>>(() => new Set(['BTC', 'SOL']));
-  const [coins, setCoins] = useState<CoinData[]>(COINS);
-  const toggleFav = (s: string) => setFav(prev => {
-    const next = new Set(prev);
-    if (next.has(s)) {
-      next.delete(s);
-    } else {
-      next.add(s);
-    }
-    return next;
-  });
+  const [baseCoins, setBaseCoins] = useState<CoinData[]>(COINS);
+  const toggleFav = (s: string) => setFav(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; });
+
+  const { getTicker } = useMarketStream();
+
+  // Merge base coins with live WebSocket data
+  const coins = useMemo(() => {
+    return baseCoins.map(c => {
+      const live = getTicker(c.sym);
+      if (live) {
+        return { ...c, price: live.price, ch: live.ch, vol: live.vol };
+      }
+      return c;
+    });
+  }, [baseCoins, getTicker]);
 
   useEffect(() => {
     fetchMarkets()
-      .then(data => setCoins(data.map(cgToCoinData)))
+      .then(data => setBaseCoins(data.map(cgToCoinData)))
       .catch(() => {});
   }, []);
 

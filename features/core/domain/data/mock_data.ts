@@ -1,5 +1,6 @@
 import type { CoinData, CoinStyle, Holding, HoldingRow, OpenOrder, HistoryOrder, Fill, Activity, PortfolioTotals } from '../model';
 import { series } from './trading_utils';
+import type { TickerData } from '../../presentation/hooks/use_market_stream';
 
 export const COIN_STYLE: Record<string, CoinStyle> = {
   BTC:  { bg: '#F7931A',                                   glyph: '₿', fg: '#fff' },
@@ -60,25 +61,26 @@ export const HOLDINGS: Holding[] = [
   { sym: 'USDT', qty: 1240,   avg: 1     },
 ];
 
-export function holdingRows(): HoldingRow[] {
+export function holdingRows(tickers?: Record<string, TickerData>): HoldingRow[] {
   return HOLDINGS.map(h => {
     const c = coinOf(h.sym);
-    const price = h.sym === 'USDT' ? 1 : c.price;
+    const price = h.sym === 'USDT' ? 1 : (tickers?.[h.sym]?.price ?? c.price);
     const value = h.qty * price, cost = h.qty * h.avg, pnl = value - cost;
+    const ch = h.sym === 'USDT' ? 0 : (tickers?.[h.sym]?.ch ?? c.ch);
     return {
       ...h, price, value, cost, pnl,
       pnlPct: cost ? (pnl / cost) * 100 : 0,
       name: h.sym === 'USDT' ? 'Tether' : c.name,
-      ch: h.sym === 'USDT' ? 0 : c.ch,
+      ch,
     };
   }).sort((a, b) => b.value - a.value);
 }
 
-export function portfolioTotals(): PortfolioTotals {
-  const rows = holdingRows();
+export function portfolioTotals(tickers?: Record<string, TickerData>): PortfolioTotals {
+  const rows = holdingRows(tickers);
   const value = rows.reduce((a, r) => a + r.value, 0);
   const cost  = rows.reduce((a, r) => a + r.cost,  0);
-  return { rows, value, cost, pnl: value - cost, pnlPct: ((value - cost) / cost) * 100, today: value * 0.0184 };
+  return { rows, value, cost, pnl: value - cost, pnlPct: cost ? ((value - cost) / cost) * 100 : 0, today: value * 0.0184 };
 }
 
 export const NETWORKS: Record<string, string[]> = {

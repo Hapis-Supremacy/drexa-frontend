@@ -11,7 +11,8 @@ import {
   COINS, DONUT_COLORS, ACTIVITY, portfolioTotals, coinOf,
 } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum } from '@/features/core/domain/data/trading_utils';
-import { useWalletData } from '@/features/wallet/presentation/hooks/useWalletData';
+import { api } from '@/lib/api';
+import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
 
 const ranges = ['1D', '1W', '1M', '1Y', 'All'];
 const rangeConfig: Record<string, { seed: number; length: number }> = {
@@ -51,7 +52,8 @@ function QuickAction({
 
 export function HomePage() {
   const router = useRouter();
-  const tot = useMemo(() => portfolioTotals(), []);
+  const { tickers } = useMarketStream();
+  const tot = useMemo(() => portfolioTotals(tickers), [tickers]);
   const [range, setRange] = useState('1W');
   const curve = useMemo(() => {
     const cfg = rangeConfig[range];
@@ -61,8 +63,16 @@ export function HomePage() {
 
   const { walletBalanceCents, transactions } = useWalletData(5);
 
-  const movers = [...COINS].sort((a, b) => b.ch - a.ch).slice(0, 5);
-  const watch  = ['BTC', 'SOL', 'ETH', 'LINK'].map(coinOf);
+  const movers = useMemo(() => {
+    return [...COINS].map(c => ({ ...c, ...tickers[c.sym] })).sort((a, b) => b.ch - a.ch).slice(0, 5);
+  }, [tickers]);
+
+  const watch = useMemo(() => {
+    return ['BTC', 'SOL', 'ETH', 'LINK'].map(sym => {
+      const c = coinOf(sym);
+      return { ...c, ...tickers[sym] };
+    });
+  }, [tickers]);
 
   return (
     <TradingLayout>
