@@ -57,7 +57,7 @@ export function RegisterPage() {
 
   const onSubmit = async (data: FormData) => {
     const ok = await registerUser(data.email, data.password);
-    if (ok) router.push("/auth/register/email_verification");
+    if (ok) router.push("/login");
   };
 
   const renderRule = (condition: boolean, text: string) => (

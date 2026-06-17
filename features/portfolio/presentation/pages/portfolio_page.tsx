@@ -9,31 +9,44 @@ import {
 } from '@/features/core/presentation/components/primitives';
 import { DONUT_COLORS, ACTIVITY, portfolioTotals } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum, fmtPct } from '@/features/core/domain/data/trading_utils';
+import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
+
+const ranges = ['1W', '1M', '1Y', 'All'];
+const rangeSeeds: Record<string, number> = { '1W': 5, '1M': 9, '1Y': 19, All: 33 };
 
 function Donut({ slices, size = 168 }: { slices: { label: string; value: number; color: string }[]; size?: number }) {
   const total = slices.reduce((a, s) => a + s.value, 0);
   const R = size / 2, r = R * 0.62, cx = R, cy = R;
-  let ang = -Math.PI / 2;
-  const arc = (frac: number) => {
-    const a0 = ang, a1 = ang + frac * Math.PI * 2; ang = a1;
+  const arc = (start: number, frac: number) => {
+    const a0 = start, a1 = start + frac * Math.PI * 2;
     const large = frac > 0.5 ? 1 : 0;
     const p = (a: number, rad: number) => `${cx + rad * Math.cos(a)} ${cy + rad * Math.sin(a)}`;
     return `M ${p(a0, R)} A ${R} ${R} 0 ${large} 1 ${p(a1, R)} L ${p(a1, r)} A ${r} ${r} 0 ${large} 0 ${p(a0, r)} Z`;
   };
+  const paths = slices.reduce(
+    (acc, slice) => {
+      const fraction = slice.value / total;
+      return {
+        start: acc.start + fraction * Math.PI * 2,
+        paths: [...acc.paths, { label: slice.label, color: slice.color, d: arc(acc.start, fraction) }],
+      };
+    },
+    { start: -Math.PI / 2, paths: [] as { label: string; color: string; d: string }[] }
+  ).paths;
+
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {slices.map((s, i) => <path key={i} d={arc(s.value / total)} fill={s.color} />)}
+      {paths.map(path => <path key={path.label} d={path.d} fill={path.color} />)}
     </svg>
   );
 }
 
 export function PortfolioPage() {
   const router = useRouter();
-  const tot = useMemo(portfolioTotals, []);
+  const { tickers } = useMarketStream();
+  const tot = useMemo(() => portfolioTotals(tickers), [tickers]);
   const [range, setRange] = useState('1M');
-  const ranges = ['1W', '1M', '1Y', 'All'];
-  const seedMap: Record<string, number> = { '1W': 5, '1M': 9, '1Y': 19, 'All': 33 };
-  const curve = useMemo(() => series(seedMap[range], 70, 0.045, tot.value * 0.84), [range]);
+  const curve = useMemo(() => series(rangeSeeds[range], 70, 0.045, tot.value * 0.84), [range, tot.value]);
   const slices = tot.rows.map(r => ({ label: r.sym, value: r.value, color: DONUT_COLORS[r.sym] ?? '#2A3152' }));
 
   return (

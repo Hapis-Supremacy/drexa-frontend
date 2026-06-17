@@ -4,11 +4,12 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
 import {
-  TIcon, CoinBadge, Panel, Delta, AreaChart,
+  TIcon, CoinBadge, Panel, Delta,
   linkBtn, thL, thR, tdL, tdR,
 } from '@/features/core/presentation/components/primitives';
 import { COINS, OPEN_ORDERS, ORDER_HISTORY, coinOf } from '@/features/core/domain/data/mock_data';
 import { rng, series, fmtUSD, fmtNum, fmtCompact } from '@/features/core/domain/data/trading_utils';
+import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
 
 /* ── Candle chart ───────────────────────────────────────────────── */
 interface Candle { o: number; h: number; l: number; c: number; }
@@ -216,8 +217,8 @@ function PairHeader({ coin, setSym }: { coin: ReturnType<typeof coinOf>; setSym:
       </div>
       <Stat label="Last price" value={fmtUSD(coin.price, coin.price < 1 ? 4 : 2)} color={coin.ch >= 0 ? 'var(--up)' : 'var(--down)'} />
       <Stat label="24h change" value={<Delta v={coin.ch} />} />
-      <Stat label="24h high"   value={fmtNum(coin.price * 1.04, coin.price < 1 ? 4 : 2)} />
-      <Stat label="24h low"    value={fmtNum(coin.price * 0.96, coin.price < 1 ? 4 : 2)} />
+      <Stat label="24h high"   value={fmtNum(coin.high ?? coin.price * 1.04, coin.price < 1 ? 4 : 2)} />
+      <Stat label="24h low"    value={fmtNum(coin.low ?? coin.price * 0.96, coin.price < 1 ? 4 : 2)} />
       <Stat label="24h volume" value={fmtCompact(coin.vol)} />
     </div>
   );
@@ -263,7 +264,17 @@ function DockedOrders() {
 /* ── TradePage ──────────────────────────────────────────────────── */
 export function TradePage({ sym: initialSym }: { sym?: string }) {
   const [sym, setSym] = useState(initialSym ?? 'BTC');
-  const coin = coinOf(sym);
+  const baseCoin = coinOf(sym);
+  
+  const { getTicker } = useMarketStream();
+  const live = getTicker(sym);
+  
+  const coin = useMemo(() => {
+    if (live) {
+      return { ...baseCoin, price: live.price, ch: live.ch, vol: live.vol, high: live.high, low: live.low };
+    }
+    return baseCoin;
+  }, [baseCoin, live]);
 
   return (
     <TradingLayout>

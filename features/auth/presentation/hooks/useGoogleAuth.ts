@@ -1,12 +1,32 @@
 import { useState, useCallback } from "react";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import type { FirebaseError } from "firebase/app";
 import { auth } from "@/features/core/store/firebase";
 import { api } from "@/lib/api";
+import { signInWithBackend } from "./backendAuth";
+
+interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  avatar: string;
+  provider: "google";
+}
+
+interface AuthSession {
+  message: string;
+  user: AuthUser;
+}
 
 type AuthStatus = "idle" | "loading" | "success" | "error";
 
+const FIREBASE_ERRORS: Record<string, string> = {
+  "auth/operation-not-allowed": "Google sign-in is not enabled in Firebase Authentication",
+};
+
 interface UseGoogleAuthReturn {
   status: AuthStatus;
+  user: AuthUser | null;
   error: string | null;
   isLoading: boolean;
   login: () => Promise<boolean>;
@@ -16,6 +36,7 @@ interface UseGoogleAuthReturn {
 export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const [status, setStatus] = useState<AuthStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const login = useCallback(async (): Promise<boolean> => {
     setStatus("loading");
@@ -26,19 +47,36 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
     try {
       const result = await signInWithPopup(auth, provider);
       const idToken = await result.user.getIdToken();
-
-      await api.post("/auth/signin", { id_token: idToken });
+      const backendAuth = await signInWithBackend(idToken);
 
       await auth.signOut();
+
+      const session: AuthSession = {
+        message: backendAuth.message ?? "sign-in successful",
+        user: {
+          id: result.user.uid,
+          email: result.user.email ?? "",
+          name: result.user.displayName ?? "",
+          avatar: result.user.photoURL ?? "",
+          provider: "google",
+        },
+      };
+
+      setUser(session.user);
       setStatus("success");
       return true;
     } catch (err: unknown) {
+      await auth.signOut().catch(() => {});
+
       if ((err as { code?: string })?.code === "auth/popup-closed-by-user") {
         setStatus("idle");
         return false;
       }
 
-      const message = err instanceof Error ? err.message : "Unknown error occurred";
+      const firebaseErr = err as FirebaseError;
+      const message =
+        FIREBASE_ERRORS[firebaseErr?.code] ??
+        (err instanceof Error ? err.message : "Unknown error occurred");
       setError(message);
       setStatus("error");
       return false;
@@ -47,9 +85,17 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => {});
+    setUser(null);
     setStatus("idle");
     setError(null);
   }, []);
 
-  return { status, error, isLoading: status === "loading", login, logout };
+  return {
+    status,
+    user,
+    error,
+    isLoading: status === "loading",
+    login,
+    logout,
+  };
 };

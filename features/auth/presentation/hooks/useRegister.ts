@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
+import type { User } from "firebase/auth";
 import { auth } from "@/features/core/store/firebase";
-import { api } from "@/lib/api";
+import { signInWithBackend } from "./backendAuth";
 
 type RegisterStatus = "idle" | "loading" | "success" | "error";
 
@@ -28,7 +29,7 @@ export const useRegister = (): UseRegisterReturn => {
     setStatus("loading");
     setError(null);
 
-    let firebaseUser = null;
+    let firebaseUser: User | null = null;
 
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
@@ -36,7 +37,7 @@ export const useRegister = (): UseRegisterReturn => {
       const idToken = await firebaseUser.getIdToken();
       const uid = firebaseUser.uid;
 
-      await api.post("/auth/signin", { id_token: idToken });
+      await signInWithBackend(idToken);
       await auth.signOut();
 
       // Store Firebase UID so the OTP verification page can use it as user_id
@@ -45,11 +46,8 @@ export const useRegister = (): UseRegisterReturn => {
       setStatus("success");
       return true;
     } catch (err: unknown) {
+      await firebaseUser?.delete().catch(() => {});
       await auth.signOut().catch(() => {});
-
-      if (firebaseUser) {
-        await firebaseUser.delete().catch(() => {});
-      }
 
       const firebaseErr = err as FirebaseError;
       const message =

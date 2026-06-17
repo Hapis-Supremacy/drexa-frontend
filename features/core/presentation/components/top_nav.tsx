@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { TIcon, btnGhost } from './primitives';
 import { portfolioTotals } from '@/features/core/domain/data/mock_data';
 import { fmtUSD } from '@/features/core/domain/data/trading_utils';
+import { api } from '@/lib/api';
 
 const NAV_ITEMS = [
   { id: 'home',      label: 'Home',      icon: 'home'   as const, href: '/home'      },
@@ -29,6 +30,11 @@ export function TopNav() {
   const pathname = usePathname();
   const active  = activeId(pathname);
   const bal     = portfolioTotals().value;
+
+  const onLogout = async () => {
+    await api.post('/auth/logout').catch(() => {});
+    router.replace('/login');
+  };
 
   return (
     <header style={{
@@ -93,6 +99,22 @@ export function TopNav() {
       </button>
 
       <TIcon name="bell" size={20} color="var(--fg-3)" style={{ cursor: 'pointer' }} />
+
+      <button
+        onClick={onLogout}
+        title="Log out"
+        style={{
+          ...btnGhost,
+          width: 38,
+          height: 38,
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <TIcon name="logout" size={17} color="var(--fg-3)" />
+      </button>
 
       <span style={{
         width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-gradient)',

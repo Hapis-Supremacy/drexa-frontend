@@ -9,6 +9,8 @@ export interface CoinData {
   seed: number;
   spark: number[];
   rank?: number;
+  high?: number;
+  low?: number;
 }
 
 export interface CoinStyle {

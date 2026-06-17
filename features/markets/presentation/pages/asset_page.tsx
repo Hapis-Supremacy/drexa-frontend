@@ -10,6 +10,7 @@ import {
 import { ABOUT, coinOf, holdingRows } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum, fmtCompact } from '@/features/core/domain/data/trading_utils';
 import { fetchMarkets, fetchChartData, cgToCoinData } from '@/lib/coingecko';
+import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
 import type { CoinData } from '@/features/core/domain/model';
 
 function Field({ label, suffix, value, placeholder, readOnly }: { label: string; suffix: string; value: string; placeholder: string; readOnly?: boolean }) {
@@ -92,9 +93,10 @@ export function AssetPage({ sym }: { sym: string }) {
   const [range, setRange] = useState('1W');
   const ranges = ['1H', '1D', '1W', '1M', '1Y'];
 
-  const up = coin.ch >= 0;
   const curveUp = chartData.length > 1 && chartData[chartData.length - 1] >= chartData[0];
   const hold = holdingRows().find(h => h.sym === sym);
+
+  const { tickers } = useMarketStream();
 
   // Fetch live price + stats on mount
   useEffect(() => {
@@ -106,13 +108,27 @@ export function AssetPage({ sym }: { sym: string }) {
       .catch(() => {});
   }, [sym]);
 
+  // Update with WebSocket data
+  useEffect(() => {
+    if (tickers[sym]) {
+      setCoin(c => ({ ...c, ...tickers[sym] }));
+    }
+  }, [tickers, sym]);
+
   // Fetch chart data when sym or range changes
   useEffect(() => {
-    setChartLoading(true);
+    let active = true;
+    const timer = window.setTimeout(() => setChartLoading(true), 0);
+
     fetchChartData(sym, range)
-      .then(data => { if (data.length > 1) setChartData(data); })
+      .then(data => { if (active && data.length > 1) setChartData(data); })
       .catch(() => {})
-      .finally(() => setChartLoading(false));
+      .finally(() => { if (active) setChartLoading(false); });
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [sym, range]);
 
   return (
