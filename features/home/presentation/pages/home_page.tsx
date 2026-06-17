@@ -13,6 +13,7 @@ import {
 import { series, fmtUSD, fmtNum } from '@/features/core/domain/data/trading_utils';
 import { api } from '@/lib/api';
 import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
+import { useWalletData } from '@/features/wallet/presentation/hooks/useWalletData';
 
 const ranges = ['1D', '1W', '1M', '1Y', 'All'];
 const rangeConfig: Record<string, { seed: number; length: number }> = {

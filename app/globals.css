@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -214,10 +214,127 @@ input[type="date"]::-webkit-datetime-edit {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Manrope', sans-serif;
+    @apply text-foreground;
+    background: var(--bg);
+    font-family: var(--font);
   }
   html {
     @apply font-sans;
   }
 }
+
+/* ============================================================================
+   Drexa — Exchange · NEW design system (Coinbase-inspired, premium dark)
+   These tokens are appended last so they take precedence over earlier
+   (shadcn/legacy) declarations of the same names (--card, --border, --up …).
+   ========================================================================= */
+:root {
+  /* surfaces */
+  --bg:        #060A14;
+  --navbar:    #0A0E1A;
+  --surface:   #0D1221;
+  --card:      #111827;
+  --card-2:    #161F33;
+  --inset:     #0A1020;
+
+  /* borders */
+  --border:    #1A2A42;
+  --border-soft: rgba(26,42,66,0.55);
+  --border-strong: #26405F;
+
+  /* brand */
+  --blue:      #1A6FD4;
+  --blue-hover:#3D8EF0;
+  --blue-soft: rgba(26,111,212,0.14);
+  --blue-grad: linear-gradient(135deg, #3D8EF0 0%, #1A6FD4 100%);
+
+  /* text */
+  --text:      #C8D9F0;
+  --text-2:    #8A9DC0;
+  --text-3:    #5C7099;
+  --text-4:    #3E4E6E;
+  --text-hi:   #EAF2FF;
+
+  /* status */
+  --up:        #0D9488;
+  --up-soft:   rgba(13,148,136,0.14);
+  --down:      #DC2626;
+  --down-soft: rgba(220,38,38,0.13);
+  --warn:      #D97706;
+  --warn-soft: rgba(217,119,6,0.14);
+
+  /* elevation */
+  --shadow-sm:   0 1px 2px rgba(0,0,0,0.30);
+  --shadow-card: 0 10px 30px rgba(0,0,0,0.28);
+  --shadow-pop:  0 20px 56px rgba(0,0,0,0.50);
+
+  /* radii */
+  --r-xs:  8px;
+  --r-sm:  10px;
+  --r-md:  14px;
+  --r-lg:  20px;
+  --r-xl:  26px;
+  --r-pill: 999px;
+
+  /* type */
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'Roboto Mono', ui-monospace, 'SF Mono', monospace;
+
+  --sidebar-w: 250px;
+  --topbar-h: 72px;
+}
+
+/* ---- global resets + interaction styles (ported from design hosts) ---- */
+html, body { color-scheme: dark; }
+body { -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-thumb { background: #1E2B44; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::selection { background: rgba(26,111,212,.32); }
+input::placeholder { color: var(--text-3); }
+select option { color: #fff; }
+
+/* nav */
+.nav-link:hover { color: var(--text-hi) !important; background: var(--card) !important; }
+.nav-ghost:hover { background: var(--card); }
+.nav-cta:hover { background: var(--blue-hover); }
+.dd-panel { animation: ddIn .16s ease; transform-origin: top center; }
+@keyframes ddIn { from { opacity: 0; transform: translateX(-50%) translateY(-6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.dd-item:hover { background: var(--card-2); }
+
+/* buttons */
+.btn-primary { transition: background .14s ease, transform .1s ease; }
+.btn-primary:hover { background: var(--blue-hover) !important; }
+.btn-primary:active { transform: scale(.985); }
+.btn-ghost:hover { border-color: var(--border-strong); background: var(--card-2) !important; }
+.submit-btn:not(:disabled):hover { background: var(--blue-hover) !important; }
+.oauth-btn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 50px;
+  border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-hi); font: 600 14.5px var(--font); cursor: pointer; transition: background .14s, border-color .14s; }
+.oauth-btn:hover { background: var(--card-2); border-color: var(--border-strong); }
+
+/* cards + rows */
+.lift { transition: transform .16s ease; }
+.lift:hover { transform: translateY(-4px); }
+.mkt-row { transition: background .14s ease; }
+.mkt-row:hover { background: var(--card-2); }
+
+/* table trade button */
+.trade-btn { padding: 8px 20px; border-radius: var(--r-pill); border: 1px solid var(--border-strong);
+  background: transparent; color: var(--text-hi); font: 600 13.5px var(--font); cursor: pointer;
+  transition: background .14s ease, border-color .14s ease; }
+.trade-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* pagination */
+.pg-btn { width: 34px; height: 34px; border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.pg-btn:not(:disabled):hover { border-color: var(--border-strong); background: var(--card-2); }
+
+/* wallet row action */
+.wal-act { padding: 7px 13px; border-radius: var(--r-sm); border: 1px solid var(--border); background: transparent;
+  color: var(--text-2); font: 600 12.5px var(--font); cursor: pointer; transition: background .14s, border-color .14s, color .14s; }
+.wal-act:hover { background: var(--blue-soft); border-color: var(--blue); color: var(--blue-hover); }
+
+/* links + social */
+.txt-link:hover, .foot-link:hover { color: var(--blue-hover) !important; }
+.soc:hover { border-color: var(--border-strong); background: var(--card); }

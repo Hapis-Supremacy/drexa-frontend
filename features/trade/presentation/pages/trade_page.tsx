@@ -1,303 +1,340 @@
-"use client"
+"use client";
 
-import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { TradingLayout } from '@/features/core/presentation/components/trading_layout';
+/* ── Drexa — Trade (Spot) page ── */
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { AppShell } from "@/features/core/presentation/components/app_shell";
 import {
-  TIcon, CoinBadge, Panel, Delta,
-  linkBtn, thL, thR, tdL, tdR,
-} from '@/features/core/presentation/components/primitives';
-import { COINS, OPEN_ORDERS, ORDER_HISTORY, coinOf } from '@/features/core/domain/data/mock_data';
-import { rng, series, fmtUSD, fmtNum, fmtCompact } from '@/features/core/domain/data/trading_utils';
-import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
+  Icon, Container, CoinBadge, Delta,
+  COINS, COIN, fUSD, fNum, fCompact, rng, type Coin,
+} from "@/features/core/presentation/components/drexa_kit";
 
-/* ── Candle chart ───────────────────────────────────────────────── */
 interface Candle { o: number; h: number; l: number; c: number; }
-function makeCandles(seed: number, n: number, base: number, vol: number): Candle[] {
-  const r = rng(seed); const out: Candle[] = []; let prev = base;
+function candles(seed: number, n: number, base: number, vol: number): Candle[] {
+  const r = rng(seed); let px = base; const out: Candle[] = [];
   for (let i = 0; i < n; i++) {
-    const o = prev, c = Math.max(0.01, o * (1 + (r() - 0.47) * vol));
-    const h = Math.max(o, c) * (1 + r() * vol * 0.5), l = Math.min(o, c) * (1 - r() * vol * 0.5);
-    out.push({ o, h, l, c }); prev = c;
+    const o = px; const drift = (r() - 0.48) * vol; const c = Math.max(0.01, o * (1 + drift));
+    const hi = Math.max(o, c) * (1 + r() * vol * 0.5);
+    const lo = Math.min(o, c) * (1 - r() * vol * 0.5);
+    out.push({ o, h: hi, l: lo, c }); px = c;
   }
   return out;
 }
 
-function PriceAxis({ grid, top, span }: { grid: number; top: number; span: number }) {
+function CandleChart({ data, h = 360 }: { data: Candle[]; h?: number }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(720);
+  const [hover, setHover] = useState<number | null>(null);
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver(es => setW(es[0].contentRect.width));
+    ro.observe(wrapRef.current); return () => ro.disconnect();
+  }, []);
+  const padR = 64, padT = 14, padB = 24, padL = 6;
+  const innerW = Math.max(10, w - padL - padR), innerH = h - padT - padB;
+  const lo = Math.min(...data.map(d => d.l)), hi = Math.max(...data.map(d => d.h)); const range = hi - lo || 1;
+  const y = (v: number) => padT + innerH - ((v - lo) / range) * innerH;
+  const step = innerW / data.length; const bw = Math.max(2, step * 0.6);
+  const ticks = Array.from({ length: 5 }, (_, i) => lo + (range * i) / 4);
+  const last = data[data.length - 1].c;
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      {Array.from({ length: grid + 1 }).map((_, i) => {
-        const val = top - (span / grid) * i;
-        return (
-          <span key={i} style={{ position: 'absolute', right: 6, top: `calc(${(100 / grid) * i}% - 8px)`, font: '500 11px var(--font-num)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
-            {val < 1 ? val.toFixed(4) : val.toFixed(0)}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function PriceChart({ seed, base }: { seed: number; base: number }) {
-  const [tf, setTf] = useState('1H');
-  const tfs = ['15m', '1H', '4H', '1D', '1W'];
-  const height = 380;
-  const candles = useMemo(() => makeCandles(seed + tf.length, 60, base, 0.045), [seed, tf, base]);
-  const hi = Math.max(...candles.map(c => c.h)), lo = Math.min(...candles.map(c => c.l));
-  const pad = (hi - lo) * 0.08, top = hi + pad, bot = lo - pad, span = top - bot;
-  const W = 1000, H = height, gw = W / candles.length, bw = gw * 0.6;
-  const y = (v: number) => H - ((v - bot) / span) * H;
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        {tfs.map(tt => (
-          <button key={tt} onClick={() => setTf(tt)} style={{
-            padding: '5px 12px', borderRadius: 'var(--r-xs)', border: 'none', cursor: 'pointer', font: 'var(--micro)',
-            background: tf === tt ? 'var(--surface-raised)' : 'transparent',
-            color: tf === tt ? 'var(--fg)' : 'var(--fg-3)',
-          }}>{tt}</button>
-        ))}
-      </div>
-      <div style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <line key={i} x1="0" y1={(H / 5) * i} x2={W} y2={(H / 5) * i} stroke="rgba(255,255,255,.05)" strokeWidth="1" />
+    <div ref={wrapRef} style={{ width: "100%", position: "relative" }}
+      onMouseLeave={() => setHover(null)}
+      onMouseMove={(e) => { const r = wrapRef.current!.getBoundingClientRect(); const idx = Math.floor((e.clientX - r.left - padL) / step); setHover(idx >= 0 && idx < data.length ? idx : null); }}>
+      <svg width={w} height={h} style={{ display: "block" }}>
+        {ticks.map((t, i) => { const yy = y(t); return (
+          <g key={i}>
+            <line x1={padL} y1={yy} x2={padL + innerW} y2={yy} stroke="var(--border-soft)" strokeWidth="1" strokeDasharray="2 5" />
+            <text x={w - padR + 8} y={yy + 3.5} fill="var(--text-4)" style={{ font: "500 10.5px var(--mono)" }}>{fNum(t, t < 10 ? 3 : 0)}</text>
+          </g>
+        ); })}
+        <line x1={padL} y1={y(last)} x2={padL + innerW} y2={y(last)} stroke="var(--blue-hover)" strokeWidth="1" strokeDasharray="4 3" opacity="0.7" />
+        <rect x={w - padR + 2} y={y(last) - 9} width={padR - 4} height={18} rx="3" fill="var(--blue)" />
+        <text x={w - padR / 2} y={y(last) + 3.5} textAnchor="middle" fill="#fff" style={{ font: "600 10.5px var(--mono)" }}>{fNum(last, last < 10 ? 3 : 0)}</text>
+        {data.map((d, i) => {
+          const up = d.c >= d.o; const col = up ? "var(--up)" : "var(--down)";
+          const cx = padL + i * step + step / 2;
+          return (
+            <g key={i} opacity={hover == null || hover === i ? 1 : 0.55}>
+              <line x1={cx} y1={y(d.h)} x2={cx} y2={y(d.l)} stroke={col} strokeWidth="1" />
+              <rect x={cx - bw / 2} y={Math.min(y(d.o), y(d.c))} width={bw} height={Math.max(1.5, Math.abs(y(d.o) - y(d.c)))} fill={col} rx="0.5" />
+            </g>
+          );
+        })}
+      </svg>
+      {hover != null && (
+        <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: "7px 12px", font: "500 11.5px var(--mono)", pointerEvents: "none" }}>
+          {([["O", data[hover].o], ["H", data[hover].h], ["L", data[hover].l], ["C", data[hover].c]] as [string, number][]).map(([k, v]) => (
+            <span key={k} style={{ color: "var(--text-3)" }}>{k} <span style={{ color: "var(--text-hi)" }}>{fNum(v, v < 10 ? 3 : 1)}</span></span>
           ))}
-          {candles.map((c, i) => {
-            const cup = c.c >= c.o;
-            const col = cup ? 'var(--up)' : 'var(--down)';
-            const x = i * gw + gw / 2;
-            return (
-              <g key={i}>
-                <line x1={x} y1={y(c.h)} x2={x} y2={y(c.l)} stroke={col} strokeWidth="1.4" />
-                <rect x={x - bw / 2} y={Math.min(y(c.o), y(c.c))} width={bw}
-                  height={Math.max(2, Math.abs(y(c.o) - y(c.c)))} fill={col} rx="1" />
-              </g>
-            );
-          })}
-        </svg>
-        <PriceAxis grid={5} top={top} span={span} />
-        <div style={{ position: 'absolute', left: 0, right: 0, top: `${((top - candles[candles.length - 1].c) / span) * 100}%`, borderTop: '1px dashed rgba(0,255,163,.5)', pointerEvents: 'none' }} />
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── Order book ─────────────────────────────────────────────────── */
 function OrderBook({ price }: { price: number }) {
   const rows = useMemo(() => {
-    const r = rng(Math.round(price));
-    const mk = (sign: number) => Array.from({ length: 9 }).map((_, i) => {
-      const p = price * (1 + sign * (i + 1) * 0.0008);
+    const r = rng(Math.round(price * 100) + 5);
+    const mk = (sign: number) => Array.from({ length: 7 }, (_, i) => {
+      const p = price * (1 + sign * (i + 1) * 0.0007 * (1 + r() * 0.5));
       const amt = +(r() * 2.4 + 0.05).toFixed(4);
-      return { p, amt, total: +(p * amt).toFixed(0) };
+      return { p, amt, total: p * amt };
     });
-    return { asks: mk(1).reverse(), bids: mk(-1) };
+    return { asks: mk(1).sort((a, b) => b.p - a.p), bids: mk(-1).sort((a, b) => b.p - a.p) };
   }, [price]);
   const maxTot = Math.max(...[...rows.asks, ...rows.bids].map(r => r.total));
-
-  const Row = ({ r, side }: { r: { p: number; amt: number; total: number }; side: 'bid' | 'ask' }) => {
-    const up = side === 'bid';
-    return (
-      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '3px 12px', font: '500 12px var(--font-num)', fontVariantNumeric: 'tabular-nums' }}>
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(r.total / maxTot) * 100}%`, background: up ? 'var(--up-soft)' : 'var(--down-soft)' }} />
-        <span style={{ color: up ? 'var(--up)' : 'var(--down)', position: 'relative' }}>{r.p < 1 ? r.p.toFixed(4) : r.p.toFixed(2)}</span>
-        <span style={{ color: 'var(--fg-2)', textAlign: 'right', position: 'relative' }}>{r.amt}</span>
-        <span style={{ color: 'var(--fg-3)', textAlign: 'right', position: 'relative' }}>{r.total.toLocaleString()}</span>
+  const Row = ({ r, side }: { r: { p: number; amt: number; total: number }; side: "ask" | "bid" }) => (
+    <div style={{ position: "relative", display: "flex", justifyContent: "space-between", padding: "4px 14px", font: "500 12px var(--mono)", fontVariantNumeric: "tabular-nums" }}>
+      <span style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: (r.total / maxTot * 100) + "%", background: side === "ask" ? "var(--down-soft)" : "var(--up-soft)" }} />
+      <span style={{ position: "relative", color: side === "ask" ? "var(--down)" : "var(--up)" }}>{fNum(r.p, r.p < 10 ? 4 : 2)}</span>
+      <span style={{ position: "relative", color: "var(--text-2)" }}>{fNum(r.amt, 4)}</span>
+    </div>
+  );
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden" }}>
+      <div style={{ padding: "16px 18px 12px", font: "700 15px var(--font)", color: "var(--text-hi)" }}>Order book</div>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "0 14px 8px", font: "600 10.5px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+        <span>Price (USDC)</span><span>Amount</span>
       </div>
-    );
+      <div>{rows.asks.map((r, i) => <Row key={i} r={r} side="ask" />)}</div>
+      <div style={{ padding: "9px 14px", borderTop: "1px solid var(--border-soft)", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ font: "600 16px var(--mono)", color: "var(--up)", fontVariantNumeric: "tabular-nums" }}>{fNum(price, price < 10 ? 4 : 2)}</span>
+        <Icon name="arrowUp" size={14} color="var(--up)" stroke={2.4} />
+        <span style={{ font: "500 12px var(--font)", color: "var(--text-3)" }}>≈ {fUSD(price, price < 10 ? 4 : 2)}</span>
+      </div>
+      <div>{rows.bids.map((r, i) => <Row key={i} r={r} side="bid" />)}</div>
+    </div>
+  );
+}
+
+const ORDER_TYPES = ["Market", "Limit", "Stop-Limit", "OCO"];
+function TicketField({ label, value, onChange, suffix, readOnly }: { label: string; value: string; onChange?: (v: string) => void; suffix: string; readOnly?: boolean }) {
+  return (
+    <div>
+      <div style={{ font: "500 12px var(--font)", color: "var(--text-3)", marginBottom: 6 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 46, padding: "0 14px", background: readOnly ? "var(--inset)" : "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)" }}>
+        <input value={value} onChange={e => onChange && onChange(e.target.value)} readOnly={readOnly} inputMode="decimal"
+          style={{ flex: 1, background: "none", border: "none", outline: "none", color: readOnly ? "var(--text-2)" : "var(--text-hi)", font: "600 15px var(--mono)", width: "100%" }} />
+        <span style={{ font: "600 13px var(--font)", color: "var(--text-3)" }}>{suffix}</span>
+      </div>
+    </div>
+  );
+}
+function OrderTicket({ coin }: { coin: Coin }) {
+  const [side, setSide] = useState("buy");
+  const [type, setType] = useState("Limit");
+  const [price, setPrice] = useState(coin.price.toFixed(coin.price < 10 ? 4 : 2));
+  const [stop, setStop] = useState((coin.price * 0.98).toFixed(coin.price < 10 ? 4 : 2));
+  const [limit, setLimit] = useState((coin.price * 1.02).toFixed(coin.price < 10 ? 4 : 2));
+  const [amount, setAmount] = useState("");
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    setPrice(coin.price.toFixed(coin.price < 10 ? 4 : 2));
+    setStop((coin.price * 0.98).toFixed(coin.price < 10 ? 4 : 2));
+    setLimit((coin.price * 1.02).toFixed(coin.price < 10 ? 4 : 2));
+    setAmount(""); setPct(0);
+  }, [coin.sym, coin.price]);
+
+  const isBuy = side === "buy";
+  const balQuote = 12480.00, balBase = 0.1312;
+  const px = type === "Market" ? coin.price : (parseFloat(price) || coin.price);
+  const amt = parseFloat(amount) || 0;
+  const total = amt * px;
+  const fee = total * 0.001;
+  const accent = isBuy ? "var(--up)" : "var(--down)";
+  const setByPct = (p: number) => {
+    setPct(p);
+    if (isBuy) setAmount(((balQuote * p / 100) / px).toFixed(6));
+    else setAmount((balBase * p / 100).toFixed(6));
   };
-
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '0 12px 8px', font: 'var(--nano)', color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-        <span>Price</span><span style={{ textAlign: 'right' }}>Amount</span><span style={{ textAlign: 'right' }}>Total</span>
-      </div>
-      {rows.asks.map((r, i) => <Row key={'a' + i} r={r} side="ask" />)}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBlock: '1px solid var(--border-hairline)', margin: '4px 0' }}>
-        <span style={{ font: '700 17px var(--font-num)', color: 'var(--up)', fontVariantNumeric: 'tabular-nums' }}>{price < 1 ? price.toFixed(4) : fmtNum(price)}</span>
-        <TIcon name="arrowUp" size={14} color="var(--up)" />
-        <span style={{ font: 'var(--nano)', color: 'var(--fg-4)', marginLeft: 'auto' }}>Spread 0.08%</span>
-      </div>
-      {rows.bids.map((r, i) => <Row key={'b' + i} r={r} side="bid" />)}
-    </div>
-  );
-}
-
-/* ── Trade ticket ───────────────────────────────────────────────── */
-function TField({ label, suffix, value, onChange, placeholder, disabled, readOnly }: { label: string; suffix: string; value: string; onChange?: (v: string) => void; placeholder?: string; disabled?: boolean; readOnly?: boolean }) {
-  return (
-    <label style={{ display: 'block' }}>
-      <span style={{ font: 'var(--nano)', color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', height: 46, marginTop: 6, padding: '0 12px', background: 'var(--surface-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', opacity: disabled ? 0.5 : 1 }}>
-        <input value={value} onChange={e => onChange?.(e.target.value)} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
-          style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--fg)', font: '600 14px var(--font-num)', fontVariantNumeric: 'tabular-nums', minWidth: 0 }} />
-        <span style={{ font: 'var(--micro)', color: 'var(--fg-4)' }}>{suffix}</span>
-      </div>
-    </label>
-  );
-}
-
-function TradeTicket({ coin }: { coin: ReturnType<typeof coinOf> }) {
-  const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const [type, setType] = useState('market');
-  const [price, setPrice] = useState(coin.price.toFixed(coin.price < 1 ? 4 : 2));
-  const [pctRaw, setPct] = useState(0);
-  const buy = side === 'buy';
-  const px = type === 'market' ? coin.price : (parseFloat(price) || coin.price);
-  const quote = buy ? 6420 : 8420;
-  const total = (quote * pctRaw) / 100, amount = total / px;
-  const accent = buy ? 'var(--up)' : 'var(--down)';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: 'var(--surface-input)', padding: 4, borderRadius: 'var(--r-sm)' }}>
-        {(['buy', 'sell'] as const).map(s => (
-          <button key={s} onClick={() => { setSide(s); setPct(0); }} style={{
-            padding: '9px 0', borderRadius: 'var(--r-xs)', border: 'none', cursor: 'pointer', textTransform: 'capitalize',
-            font: 'var(--body-strong)',
-            background: side === s ? (s === 'buy' ? 'var(--up)' : 'var(--down)') : 'transparent',
-            color: side === s ? '#0b1020' : 'var(--fg-3)',
-          }}>{s}</button>
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 20, boxShadow: "var(--shadow-card)" }}>
+      <div style={{ display: "flex", gap: 0, background: "var(--inset)", borderRadius: "var(--r-sm)", padding: 4, marginBottom: 18 }}>
+        {([["buy", "Buy"], ["sell", "Sell"]] as [string, string][]).map(([id, label]) => (
+          <button key={id} onClick={() => { setSide(id); setPct(0); }} style={{
+            flex: 1, height: 40, borderRadius: "var(--r-xs)", border: "none", cursor: "pointer", font: "700 14px var(--font)",
+            background: side === id ? (id === "buy" ? "var(--up)" : "var(--down)") : "transparent",
+            color: side === id ? "#fff" : "var(--text-2)",
+          }}>{label}</button>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border-hairline)' }}>
-        {['market', 'limit', 'stop'].map(tt => (
-          <button key={tt} onClick={() => setType(tt)} style={{
-            padding: '0 0 8px', border: 'none', background: 'none', cursor: 'pointer', textTransform: 'capitalize', font: 'var(--small)',
-            color: type === tt ? 'var(--fg)' : 'var(--fg-3)',
-            borderBottom: type === tt ? '2px solid var(--brand-blue)' : '2px solid transparent', marginBottom: -1,
-          }}>{tt}</button>
+      <div style={{ display: "flex", gap: 16, marginBottom: 18, borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
+        {ORDER_TYPES.map(t => (
+          <button key={t} onClick={() => setType(t)} style={{
+            background: "none", border: "none", cursor: "pointer", padding: "0 0 12px", font: `${type === t ? 600 : 500} 13px var(--font)`,
+            color: type === t ? "var(--text-hi)" : "var(--text-3)", borderBottom: type === t ? "2px solid var(--blue)" : "2px solid transparent", marginBottom: -1,
+          }}>{t}</button>
         ))}
       </div>
-      <TField label={type === 'stop' ? 'Stop price' : 'Price'} suffix="USDT" disabled={type === 'market'} value={type === 'market' ? 'Market price' : price} onChange={setPrice} />
-      <TField label="Amount" suffix={coin.sym} value={amount ? amount.toFixed(coin.price < 1 ? 0 : 5) : ''} placeholder="0.00" readOnly />
-      <div>
-        <input type="range" min="0" max="100" value={pctRaw} onChange={e => setPct(+e.target.value)} style={{ width: '100%', accentColor: buy ? 'var(--up)' : 'var(--down)' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          {[0, 25, 50, 75, 100].map(p => (
-            <button key={p} onClick={() => setPct(p)} style={{ border: 'none', background: 'none', cursor: 'pointer', font: 'var(--nano)', color: pctRaw === p ? accent : 'var(--fg-4)' }}>{p}%</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {type === "Stop-Limit" && <TicketField label="Stop price" value={stop} onChange={setStop} suffix="USDC" />}
+        {type === "OCO" && <TicketField label="Take-profit price" value={limit} onChange={setLimit} suffix="USDC" />}
+        {type === "OCO" && <TicketField label="Stop price" value={stop} onChange={setStop} suffix="USDC" />}
+        {type === "Market"
+          ? <TicketField label="Price" value="Market price" readOnly suffix="USDC" />
+          : (type !== "OCO" && <TicketField label={type === "Stop-Limit" ? "Limit price" : "Price"} value={price} onChange={setPrice} suffix="USDC" />)}
+        <TicketField label="Amount" value={amount} onChange={(v) => { setAmount(v); setPct(0); }} suffix={coin.sym} />
+        <div style={{ display: "flex", gap: 8 }}>
+          {[25, 50, 75, 100].map(p => (
+            <button key={p} onClick={() => setByPct(p)} style={{
+              flex: 1, height: 32, borderRadius: "var(--r-xs)", cursor: "pointer", font: "600 12px var(--mono)",
+              border: "1px solid " + (pct === p ? "var(--blue)" : "var(--border)"), background: pct === p ? "var(--blue-soft)" : "transparent",
+              color: pct === p ? "var(--blue-hover)" : "var(--text-3)",
+            }}>{p}%</button>
           ))}
         </div>
+        <TicketField label="Total" value={amt ? fNum(total) : ""} readOnly suffix="USDC" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 0", borderTop: "1px solid var(--border-soft)" }}>
+          {([["Available", isBuy ? fUSD(balQuote) + " USDC" : fNum(balBase, 4) + " " + coin.sym],
+            ["Est. fee (0.10%)", fUSD(fee)],
+            [isBuy ? "You receive" : "You get", isBuy ? fNum(amt, 6) + " " + coin.sym : fUSD(total - fee)]] as [string, string][]).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", font: "500 13px var(--font)" }}>
+              <span style={{ color: "var(--text-3)" }}>{k}</span>
+              <span style={{ color: "var(--text-2)", fontFamily: "var(--mono)" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <button style={{ height: 50, borderRadius: "var(--r-md)", border: "none", cursor: "pointer", background: accent, color: "#fff", font: "700 15px var(--font)" }}>
+          {isBuy ? "Buy" : "Sell"} {coin.sym}
+        </button>
       </div>
-      <TField label="Total" suffix="USDT" value={total ? total.toFixed(2) : ''} placeholder="0.00" readOnly />
-      <div style={{ display: 'flex', justifyContent: 'space-between', font: 'var(--micro)', color: 'var(--fg-3)' }}>
-        <span>{buy ? 'Available' : 'Position'}</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{buy ? fmtUSD(quote) + ' USDT' : '0.1312 ' + coin.sym}</span>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', font: 'var(--micro)', color: 'var(--fg-3)' }}>
-        <span>Est. fee (0.10%)</span><span>{fmtUSD(total * 0.001)}</span>
-      </div>
-      <button style={{ height: 50, border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer', font: 'var(--body-strong)', background: buy ? 'var(--up)' : 'var(--down)', color: '#0b1020' }}>
-        {buy ? 'Buy' : 'Sell'} {coin.sym}
-      </button>
     </div>
   );
 }
 
-/* ── Pair header ────────────────────────────────────────────────── */
-function Stat({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
+const OPEN_ORDERS = [
+  { pair: "BTC/USDC", side: "Buy", type: "Limit", price: 62500, amt: 0.05, filled: "0%", time: "10:24" },
+  { pair: "SOL/USDC", side: "Sell", type: "Stop-Limit", price: 152.00, amt: 8, filled: "0%", time: "09:48" },
+];
+const ORDER_HISTORY = [
+  { pair: "ETH/USDC", side: "Buy", type: "Market", price: 3090.12, amt: 0.4, status: "Filled", time: "Jun 10" },
+  { pair: "BTC/USDC", side: "Buy", type: "Limit", price: 61800, amt: 0.05, status: "Filled", time: "Jun 9" },
+  { pair: "DOGE/USDC", side: "Sell", type: "Limit", price: 0.162, amt: 4200, status: "Cancelled", time: "Jun 8" },
+];
+const TRADE_HISTORY = [
+  { pair: "SOL/USDC", side: "Buy", price: 146.20, amt: 12.5, fee: 1.83, time: "Today 10:24" },
+  { pair: "ETH/USDC", side: "Sell", price: 3108.74, amt: 0.4, fee: 1.24, time: "Yesterday" },
+  { pair: "BTC/USDC", side: "Buy", price: 61800, amt: 0.05, fee: 3.09, time: "Jun 9" },
+];
+function OrdersPanel() {
+  const [tab, setTab] = useState("open");
+  const tabs: [string, string][] = [["open", "Open Orders"], ["history", "Order History"], ["trades", "Trade History"]];
+  const th: CSSProperties = { textAlign: "left", padding: "12px 20px", font: "600 11px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" };
+  const td: CSSProperties = { padding: "13px 20px", font: "500 13px var(--font)", color: "var(--text-2)" };
+  const tdM: CSSProperties = { ...td, fontFamily: "var(--mono)", fontVariantNumeric: "tabular-nums" };
+  const SideTag = ({ s }: { s: string }) => <span style={{ font: "600 12.5px var(--font)", color: s === "Buy" ? "var(--up)" : "var(--down)" }}>{s}</span>;
   return (
-    <div>
-      <div style={{ font: 'var(--nano)', color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</div>
-      <div style={{ font: '700 14px var(--font-num)', color: color ?? 'var(--fg)', marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-    </div>
-  );
-}
-
-function PairHeader({ coin, setSym }: { coin: ReturnType<typeof coinOf>; setSym: (s: string) => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: '14px 18px', borderBottom: '1px solid var(--border-hairline)', flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <CoinBadge sym={coin.sym} size={30} />
-        <select value={coin.sym} onChange={e => setSym(e.target.value)} style={{ background: 'var(--surface-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', color: 'var(--fg)', font: '700 16px var(--font-sans)', padding: '8px 12px', cursor: 'pointer' }}>
-          {COINS.map(c => <option key={c.sym} value={c.sym}>{c.sym}/USDT</option>)}
-        </select>
-      </div>
-      <Stat label="Last price" value={fmtUSD(coin.price, coin.price < 1 ? 4 : 2)} color={coin.ch >= 0 ? 'var(--up)' : 'var(--down)'} />
-      <Stat label="24h change" value={<Delta v={coin.ch} />} />
-      <Stat label="24h high"   value={fmtNum(coin.high ?? coin.price * 1.04, coin.price < 1 ? 4 : 2)} />
-      <Stat label="24h low"    value={fmtNum(coin.low ?? coin.price * 0.96, coin.price < 1 ? 4 : 2)} />
-      <Stat label="24h volume" value={fmtCompact(coin.vol)} />
-    </div>
-  );
-}
-
-/* ── Docked open orders ─────────────────────────────────────────── */
-function DockedOrders() {
-  const router = useRouter();
-  const [tab, setTab] = useState('open');
-  return (
-    <Panel pad={0}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '12px 18px', borderBottom: '1px solid var(--border-hairline)' }}>
-        {([['open', `Open orders (${OPEN_ORDERS.length})`], ['history', 'Order history']] as [string, string][]).map(([id, l]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ border: 'none', background: 'none', cursor: 'pointer', font: 'var(--small)', color: tab === id ? 'var(--fg)' : 'var(--fg-3)' }}>{l}</button>
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
+      <div style={{ display: "flex", gap: 26, padding: "0 20px", borderBottom: "1px solid var(--border)" }}>
+        {tabs.map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            background: "none", border: "none", cursor: "pointer", padding: "16px 0", font: `${tab === id ? 600 : 500} 13.5px var(--font)`,
+            color: tab === id ? "var(--text-hi)" : "var(--text-3)", borderBottom: tab === id ? "2px solid var(--blue)" : "2px solid transparent", marginBottom: -1,
+          }}>{label}{id === "open" ? ` (${OPEN_ORDERS.length})` : ""}</button>
         ))}
-        <div style={{ flex: 1 }} />
-        <button onClick={() => router.push('/orders')} style={linkBtn}>Full order manager<TIcon name="chevRight" size={13} /></button>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>
-          <th style={thL}>Pair</th><th style={thL}>Side · Type</th>
-          <th style={thR}>Price</th><th style={thR}>Amount</th>
-          <th style={thR}>Filled</th><th style={thR}>Time</th><th style={thR}></th>
-        </tr></thead>
-        <tbody>
-          {(tab === 'open' ? OPEN_ORDERS : ORDER_HISTORY.slice(0, 4)).map((o, i) => (
-            <tr key={i} style={{ borderTop: '1px solid var(--border-hairline)', font: '500 13px var(--font-num)', fontVariantNumeric: 'tabular-nums' }}>
-              <td style={{ ...tdL, fontWeight: 700, color: 'var(--fg)' }}>{o.sym}/USDT</td>
-              <td style={{ ...tdL, color: o.side === 'buy' ? 'var(--up)' : 'var(--down)', textTransform: 'capitalize', fontWeight: 700 }}>{o.side} · {o.type}</td>
-              <td style={{ ...tdR, color: 'var(--fg-2)' }}>{fmtNum(o.price, o.price < 1 ? 4 : 2)}</td>
-              <td style={{ ...tdR, color: 'var(--fg-2)' }}>{o.amt} {o.sym}</td>
-              <td style={{ ...tdR, color: 'var(--fg-3)' }}>{tab === 'open' ? (('filled' in o ? o.filled : 0) + '%') : (('status' in o ? o.status : '—'))}</td>
-              <td style={{ ...tdR, color: 'var(--fg-3)' }}>{o.time.replace('Today · ', '')}</td>
-              <td style={tdR}>{tab === 'open' && <button style={{ border: '1px solid var(--border-subtle)', background: 'none', color: 'var(--fg-3)', borderRadius: 'var(--r-xs)', padding: '4px 12px', cursor: 'pointer', font: 'var(--nano)' }}>Cancel</button>}</td>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        {tab === "open" && <>
+          <thead><tr>{["Pair", "Side", "Type", "Price", "Amount", "Filled", "Time", ""].map((h, i) => <th key={i} style={{ ...th, textAlign: i > 2 && i < 7 ? "right" : "left" }}>{h}</th>)}</tr></thead>
+          <tbody>{OPEN_ORDERS.map((o, i) => (
+            <tr key={i} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{o.pair}</td><td style={td}><SideTag s={o.side} /></td><td style={td}>{o.type}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price, o.price < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.amt}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{o.filled}</td><td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{o.time}</td>
+              <td style={{ ...td, textAlign: "right" }}><button style={{ font: "600 12.5px var(--font)", color: "var(--down)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button></td>
             </tr>
-          ))}
-        </tbody>
+          ))}</tbody>
+        </>}
+        {tab === "history" && <>
+          <thead><tr>{["Pair", "Side", "Type", "Price", "Amount", "Status", "Time"].map((h, i) => <th key={i} style={{ ...th, textAlign: i > 2 && i < 6 ? "right" : "left" }}>{h}</th>)}</tr></thead>
+          <tbody>{ORDER_HISTORY.map((o, i) => (
+            <tr key={i} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{o.pair}</td><td style={td}><SideTag s={o.side} /></td><td style={td}>{o.type}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price, o.price < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.amt}</td>
+              <td style={{ ...td, textAlign: "right" }}><span style={{ font: "600 12px var(--font)", color: o.status === "Filled" ? "var(--up)" : "var(--text-3)" }}>{o.status}</span></td>
+              <td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{o.time}</td>
+            </tr>
+          ))}</tbody>
+        </>}
+        {tab === "trades" && <>
+          <thead><tr>{["Pair", "Side", "Price", "Amount", "Fee", "Time"].map((h, i) => <th key={i} style={{ ...th, textAlign: i > 1 && i < 5 ? "right" : "left" }}>{h}</th>)}</tr></thead>
+          <tbody>{TRADE_HISTORY.map((o, i) => (
+            <tr key={i} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{o.pair}</td><td style={td}><SideTag s={o.side} /></td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price, o.price < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.amt}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fUSD(o.fee)}</td><td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{o.time}</td>
+            </tr>
+          ))}</tbody>
+        </>}
       </table>
-    </Panel>
+    </div>
   );
 }
 
-/* ── TradePage ──────────────────────────────────────────────────── */
-export function TradePage({ sym: initialSym }: { sym?: string }) {
-  const [sym, setSym] = useState(initialSym ?? 'BTC');
-  const baseCoin = coinOf(sym);
-  
-  const { getTicker } = useMarketStream();
-  const live = getTicker(sym);
-  
-  const coin = useMemo(() => {
-    if (live) {
-      return { ...baseCoin, price: live.price, ch: live.ch, vol: live.vol, high: live.high, low: live.low };
-    }
-    return baseCoin;
-  }, [baseCoin, live]);
-
+const TFS = ["15m", "1H", "4H", "1D", "1W"];
+export function TradePage({ sym: symProp }: { sym?: string }) {
+  const initial = symProp && COIN(symProp) ? symProp : "BTC";
+  const [sym, setSym] = useState(initial);
+  const [tf, setTf] = useState("1H");
+  const [pairOpen, setPairOpen] = useState(false);
+  const coin = COIN(sym)!;
+  const data = useMemo(() => candles(coin.seed * 7 + TFS.indexOf(tf), 52, coin.price * 0.93, 0.022), [sym, tf, coin.seed, coin.price]);
+  const hi = coin.price * 1.045, lo = coin.price * 0.962;
+  const stats: [string, string][] = [["24h High", fNum(hi, coin.price < 10 ? 4 : 2)], ["24h Low", fNum(lo, coin.price < 10 ? 4 : 2)], ["24h Volume", fCompact(coin.vol)]];
   return (
-    <TradingLayout>
-      <div style={{ maxWidth: 1480, margin: '0 auto', padding: '18px 20px 44px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 300px 320px', gap: 16, alignItems: 'start' }}>
-          <Panel pad={0} style={{ overflow: 'hidden' }}>
-            <PairHeader coin={coin} setSym={setSym} />
-            <div style={{ padding: 18 }}><PriceChart seed={coin.seed} base={coin.price} /></div>
-          </Panel>
-          <Panel pad={0} style={{ paddingBlock: 14 }}>
-            <div style={{ font: 'var(--small)', color: 'var(--fg)', fontWeight: 700, padding: '0 12px 10px' }}>Order book</div>
+    <AppShell>
+      <Container max={1320} style={{ padding: "26px 32px 56px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: "16px 22px", marginBottom: 16, boxShadow: "var(--shadow-card)" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setPairOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <CoinBadge sym={sym} size={40} />
+              <span style={{ font: "700 20px var(--font)", color: "var(--text-hi)" }}>{sym}/USDC</span>
+              <Icon name="chevDown" size={18} color="var(--text-3)" style={{ transform: pairOpen ? "rotate(180deg)" : "none" }} />
+            </button>
+            {pairOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 10px)", left: 0, width: 240, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)", padding: 6, zIndex: 40, maxHeight: 360, overflowY: "auto" }}>
+                {COINS.map(c => (
+                  <button key={c.sym} onClick={() => { setSym(c.sym); setPairOpen(false); }} className="dd-item" style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "9px 10px", borderRadius: "var(--r-sm)", border: "none", background: "none", cursor: "pointer" }}>
+                    <CoinBadge sym={c.sym} size={28} />
+                    <span style={{ flex: 1, textAlign: "left", font: "600 13.5px var(--font)", color: "var(--text-hi)" }}>{c.sym}/USDC</span>
+                    <Delta v={c.ch} size={12} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <div style={{ font: "700 24px var(--mono)", color: coin.ch >= 0 ? "var(--up)" : "var(--down)", fontVariantNumeric: "tabular-nums" }}>{fUSD(coin.price, coin.price < 10 ? 4 : 2)}</div>
+            <div style={{ marginTop: 2 }}><Delta v={coin.ch} size={13} icon /></div>
+          </div>
+          <div style={{ display: "flex", gap: 28 }}>
+            {stats.map(([k, v]) => (
+              <div key={k}><div style={{ font: "500 11.5px var(--font)", color: "var(--text-3)" }}>{k}</div><div style={{ font: "600 14px var(--mono)", color: "var(--text-2)", marginTop: 3, fontVariantNumeric: "tabular-nums" }}>{v}</div></div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 332px", gap: 16, alignItems: "start" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 18, boxShadow: "var(--shadow-card)" }}>
+              <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                {TFS.map(t => (
+                  <button key={t} onClick={() => setTf(t)} style={{
+                    padding: "6px 12px", borderRadius: "var(--r-sm)", border: "none", cursor: "pointer",
+                    background: tf === t ? "var(--card-2)" : "transparent", color: tf === t ? "var(--text-hi)" : "var(--text-3)", font: "600 12.5px var(--mono)",
+                  }}>{t}</button>
+                ))}
+              </div>
+              <CandleChart data={data} h={360} />
+            </div>
+            <OrdersPanel />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <OrderTicket coin={coin} />
             <OrderBook price={coin.price} />
-          </Panel>
-          <Panel><TradeTicket coin={coin} /></Panel>
+          </div>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, padding: '12px 16px', background: 'rgba(251,214,11,.07)', border: '1px solid rgba(251,214,11,.18)', borderRadius: 'var(--r-sm)' }}>
-          <TIcon name="shield" size={18} color="var(--warning)" />
-          <span style={{ font: 'var(--small)', color: 'var(--fg-2)' }}>Crypto is volatile. Drexa is spot-only — you trade with funds you own, no leverage. Never invest more than you can afford to lose.</span>
-        </div>
-
-        <div style={{ marginTop: 16 }}><DockedOrders /></div>
-      </div>
-    </TradingLayout>
+      </Container>
+    </AppShell>
   );
 }

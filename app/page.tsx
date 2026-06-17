@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { LandingPage } from '@/features/home/presentation/pages/landing_page';
 
 export default function RootPage() {
-  redirect('/home');
+  return <LandingPage />;
 }

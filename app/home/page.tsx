@@ -1,10 +1,7 @@
-import { AuthGuard } from '@/features/auth/presentation/components/auth_guard';
-import { HomePage } from '@/features/home/presentation/pages/home_page';
+import { redirect } from 'next/navigation';
 
+// The new design uses the landing page as the public home and routes signed-in
+// users straight into the app sections. /home now lands on the portfolio overview.
 export default function Page() {
-  return (
-    <AuthGuard>
-      <HomePage />
-    </AuthGuard>
-  );
+  redirect('/portfolio');
 }
