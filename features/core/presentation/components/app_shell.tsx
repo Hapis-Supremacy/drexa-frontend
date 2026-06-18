@@ -4,7 +4,7 @@
    Drexa — application shell: Coinbase-style top nav (hover dropdowns) + footer.
    Ported from the design bundle (shell.jsx) and wired to the Next.js router.
    ========================================================================= */
-import { CSSProperties, ReactNode, useEffect, useState } from "react";
+import React, { CSSProperties, ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon, Logo } from "./drexa_kit";
@@ -48,45 +48,69 @@ const MENUS: Menu[] = [
   ] },
 ];
 
-function Dropdown({ items }: { items: MenuItem[] }) {
+function Dropdown({ items, style }: { items: MenuItem[], style?: CSSProperties }) {
   return (
-    <div className="dd-panel" style={{
-      position: "absolute", top: "calc(100% + 10px)", left: "50%", transform: "translateX(-50%)",
-      width: 332, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)",
-      boxShadow: "var(--shadow-pop)", padding: 8, zIndex: 60,
-    }}>
-      {items.map((it, i) => {
-        const inner = (
-          <>
-            <span style={{ width: 38, height: 38, borderRadius: "var(--r-sm)", flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--blue-soft)" }}>
-              <Icon name={it.icon} size={19} color="var(--blue-hover)" />
-            </span>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: "block", font: "600 14px var(--font)", color: "var(--text-hi)" }}>{it.title}</span>
-              <span style={{ display: "block", font: "500 12px var(--font)", color: "var(--text-3)", marginTop: 1 }}>{it.sub}</span>
-            </span>
-          </>
-        );
-        const cls = "dd-item";
-        const style: CSSProperties = { display: "flex", alignItems: "center", gap: 13, padding: "11px 12px", borderRadius: "var(--r-md)", textDecoration: "none" };
-        return it.href
-          ? <Link key={i} href={it.href} className={cls} style={style}>{inner}</Link>
-          : <a key={i} href="#" onClick={e => e.preventDefault()} className={cls} style={style}>{inner}</a>;
-      })}
+    <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", paddingTop: 10, zIndex: 60, ...style }}>
+      <div className="dd-panel" style={{
+        width: 332, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-pop)", padding: 8,
+      }}>
+        {items.map((it, i) => {
+          const inner = (
+            <>
+              <span style={{ width: 38, height: 38, borderRadius: "var(--r-sm)", flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--blue-soft)" }}>
+                <Icon name={it.icon} size={19} color="var(--blue-hover)" />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", font: "600 14px var(--font)", color: "var(--text-hi)" }}>{it.title}</span>
+                <span style={{ display: "block", font: "500 12px var(--font)", color: "var(--text-3)", marginTop: 1 }}>{it.sub}</span>
+              </span>
+            </>
+          );
+          const cls = "dd-item";
+          const style: CSSProperties = { display: "flex", alignItems: "center", gap: 13, padding: "11px 12px", borderRadius: "var(--r-md)", textDecoration: "none" };
+          return it.href
+            ? <Link key={i} href={it.href} className={cls} style={style}>{inner}</Link>
+            : <a key={i} href="#" onClick={e => e.preventDefault()} className={cls} style={style}>{inner}</a>;
+        })}
+      </div>
     </div>
   );
 }
 
 export function TopNav({ authed = false }: { authed?: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
+  const [lastOpen, setLastOpen] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [indicator, setIndicator] = useState({ left: 0, opacity: 0 });
+  const navRef = React.useRef<HTMLElement>(null);
   const pathname = usePathname();
   const router = useRouter();
+
   useEffect(() => {
     const onS = () => setScrolled(window.scrollY > 8);
     window.addEventListener("scroll", onS); return () => window.removeEventListener("scroll", onS);
   }, []);
+
+  useEffect(() => {
+    if (open) setLastOpen(open);
+    
+    if (!open) {
+      setIndicator(p => ({ ...p, opacity: 0 }));
+      return;
+    }
+    
+    const nav = navRef.current;
+    if (!nav) return;
+    const el = nav.querySelector(`[data-id="${open}"]`) as HTMLElement;
+    if (el) {
+      setIndicator({ left: el.offsetLeft + el.offsetWidth / 2, opacity: 1 });
+    }
+  }, [open]);
+
   const onLogout = async () => { await api.post("/auth/logout").catch(() => {}); router.replace("/login"); };
+
+  const activeMenu = MENUS.find(m => m.id === (open || lastOpen)) || MENUS[0];
 
   return (
     <header style={{
@@ -96,11 +120,11 @@ export function TopNav({ authed = false }: { authed?: boolean }) {
     }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px", height: "100%", display: "flex", alignItems: "center", gap: 8 }}>
         <Link href={authed ? "/portfolio" : "/"} style={{ textDecoration: "none", marginRight: 18 }}><Logo /></Link>
-        <nav style={{ display: "flex", alignItems: "center", gap: 2 }} onMouseLeave={() => setOpen(null)}>
+        <nav ref={navRef} style={{ display: "flex", alignItems: "center", gap: 2, position: "relative" }} onMouseLeave={() => setOpen(null)}>
           {MENUS.map(m => {
             const active = open === m.id || pathname.startsWith(m.href);
             return (
-              <div key={m.id} style={{ position: "relative" }} onMouseEnter={() => setOpen(m.id)}>
+              <div key={m.id} data-id={m.id} style={{ position: "relative" }} onMouseEnter={() => setOpen(m.id)}>
                 <Link href={m.href} className="nav-link" style={{
                   display: "flex", alignItems: "center", gap: 5, padding: "9px 14px", borderRadius: "var(--r-sm)",
                   border: "none", cursor: "pointer", textDecoration: "none", background: active ? "var(--card)" : "transparent",
@@ -108,10 +132,18 @@ export function TopNav({ authed = false }: { authed?: boolean }) {
                 }}>
                   {m.label}<Icon name="chevDown" size={15} color="currentColor" style={{ transform: open === m.id ? "rotate(180deg)" : "none", transition: "transform .18s" }} />
                 </Link>
-                {open === m.id && <Dropdown items={m.items} />}
               </div>
             );
           })}
+          <Dropdown 
+            items={activeMenu.items} 
+            style={{ 
+              left: indicator.left, 
+              opacity: indicator.opacity, 
+              visibility: indicator.opacity ? "visible" : "hidden",
+              transition: "left 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s" 
+            }} 
+          />
         </nav>
         <div style={{ flex: 1 }} />
         {authed ? (
