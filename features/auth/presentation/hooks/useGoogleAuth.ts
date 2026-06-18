@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { loginWithGoogleBackend } from "./backendAuth";
 import { useGoogleLogin } from "@react-oauth/google";
+import { clearUserCache } from "./useUser";
 
 interface AuthUser {
   id: string;
@@ -32,11 +33,12 @@ export const useGoogleAuth = (onSuccessCallback?: () => void): UseGoogleAuthRetu
       setStatus("loading");
       try {
         await loginWithGoogleBackend(tokenResponse.access_token);
+        clearUserCache();
         setUser({ id: "", email: "", name: "", avatar: "", provider: "google" });
         setStatus("success");
         if (onSuccessCallback) onSuccessCallback();
-      } catch (err: any) {
-        setError(err.message || "Google login failed");
+      } catch (err: unknown) {
+        setError((err as Error).message || "Google login failed");
         setStatus("error");
       }
     },
@@ -48,10 +50,11 @@ export const useGoogleAuth = (onSuccessCallback?: () => void): UseGoogleAuthRetu
 
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => {});
+    clearUserCache();
     setUser(null);
     setStatus("idle");
     setError(null);
   }, []);
 
-  return { status, user, error, isLoading: status === "loading", login: login as any, logout };
+  return { status, user, error, isLoading: status === "loading", login: login as unknown as () => void, logout };
 };

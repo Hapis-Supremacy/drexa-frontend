@@ -40,6 +40,7 @@ export function EmailVerificationPage() {
     resolver: zodResolver(verificationSchema),
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const code = watch("code", "");
 
   const onSubmit = async (data: FormData) => {
