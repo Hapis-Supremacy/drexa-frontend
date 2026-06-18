@@ -7,6 +7,7 @@ import {
   Icon, Container, CoinBadge, COIN, fUSD, fNum, rng,
 } from "@/features/core/presentation/components/drexa_kit";
 import { useCryptoAddress, isCryptoSupported } from "@/features/wallet/presentation/hooks/useCryptoWallet";
+import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 
 const WAL_HOLD = [
   { sym: "BTC",  qty: 0.1312 },
@@ -64,6 +65,7 @@ function QR({ seed, size = 132 }: { seed: number; size?: number }) {
 const tdWm: CSSProperties = { textAlign: "right", padding: "14px 24px", font: "500 13.5px var(--mono)", color: "var(--text-2)", fontVariantNumeric: "tabular-nums" };
 
 export function WalletPage() {
+  useScrollReveal();
   const rows = walCompute();
   const total = rows.reduce((a, r) => a + r.value, 0);
   const available = rows.reduce((a, r) => a + r.available, 0);
@@ -112,7 +114,7 @@ export function WalletPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 392px", gap: 20, alignItems: "start" }}>
+        <div data-reveal="scale" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 392px", gap: 20, alignItems: "start" }}>
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
             <div style={{ padding: "20px 24px", font: "700 16px var(--font)", color: "var(--text-hi)", borderBottom: "1px solid var(--border)" }}>Your balances</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -235,7 +237,7 @@ export function WalletPage() {
           </div>
         </div>
 
-        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)", marginTop: 20 }}>
+        <div data-reveal="1" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)", marginTop: 20 }}>
           <div style={{ padding: "20px 24px", font: "700 16px var(--font)", color: "var(--text-hi)", borderBottom: "1px solid var(--border)" }}>Transaction history</div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>{["Type", "Asset", "Amount", "Network", "Status", "Time", "Tx"].map((h, i) => (
