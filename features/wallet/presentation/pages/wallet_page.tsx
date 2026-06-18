@@ -1,52 +1,22 @@
 "use client";
 
 /* ── Drexa — Wallet (ported from the Claude Design handoff) ── */
-import { CSSProperties, Dispatch, ReactNode, SetStateAction, useState } from "react";
+import { CSSProperties, Dispatch, ReactNode, SetStateAction, useState, useEffect, useMemo } from "react";
 import { AppShell } from "@/features/core/presentation/components/app_shell";
 import {
   Icon, Container, CoinBadge, Avatar, COIN, fUSD, fNum,
 } from "@/features/core/presentation/components/drexa_kit";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 import { api } from "@/lib/api";
+import { useWalletData } from "@/features/wallet/presentation/hooks/useWalletData";
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
-const WAL_HOLD = [
-  { sym: "BTC",  qty: 0.1312 },
-  { sym: "ETH",  qty: 1.84 },
-  { sym: "SOL",  qty: 22.5 },
-  { sym: "LINK", qty: 140 },
-  { sym: "USDC", qty: 1240 },
-  { sym: "USDT", qty: 860 },
-];
-const NETWORKS: Record<string, string[]> = { BTC: ["Bitcoin"], ETH: ["Ethereum (ERC-20)", "Arbitrum"], SOL: ["Solana"], LINK: ["Ethereum (ERC-20)"], USDC: ["Ethereum (ERC-20)", "Solana", "Base"], USDT: ["Ethereum (ERC-20)", "Tron (TRC-20)"] };
-const NET_FEE: Record<string, number> = { BTC: 0.00012, ETH: 0.0008, SOL: 0.00001, LINK: 0.12, USDC: 1.2, USDT: 1.0 };
-const ADDR: Record<string, string> = { BTC: "bc1q9x4drexah8s2k7m3qz5vptl0n6yfae2cwr8u3d", ETH: "0x7A3f9Dce21B4f0cE5aD9b6E2c1F8a4D0e3B7c9F2", SOL: "8kQz4DrexaP3nVjT7mWqLf2sYbR9cH6uXa1eK5dN0gM", LINK: "0x7A3f9Dce21B4f0cE5aD9b6E2c1F8a4D0e3B7c9F2", USDC: "0x7A3f9Dce21B4f0cE5aD9b6E2c1F8a4D0e3B7c9F2", USDT: "0x7A3f9Dce21B4f0cE5aD9b6E2c1F8a4D0e3B7c9F2" };
-
-const RECENT_ADDRS = [
-  { name: "John W.", addr: "0x4F2a…B3e9c3B", sym: "ETH" },
-  { name: "Alice M.", addr: "bc1q8kx3…m2xpf7", sym: "BTC" },
-  { name: "Self — Cold", addr: "0x7A3f9Dce…c9F2", sym: "ETH" },
-];
-
-const TXNS = [
-  { type: "Deposit", sym: "USDC", amt: 1000, status: "Completed", net: "Ethereum", time: "Jun 10, 10:24", hash: "0x8f…2c1a" },
-  { type: "Withdraw", sym: "ETH", amt: 0.5, status: "Completed", net: "Ethereum", time: "Jun 9, 16:02", hash: "0x3a…9f7b" },
-  { type: "Deposit", sym: "BTC", amt: 0.05, status: "Completed", net: "Bitcoin", time: "Jun 8, 09:41", hash: "bc1…4e2d" },
-  { type: "Transfer", sym: "SOL", amt: 10, status: "Completed", net: "Internal", time: "Jun 7, 13:20", hash: "int…0091" },
-  { type: "Withdraw", sym: "USDT", amt: 300, status: "Pending", net: "Tron", time: "Jun 7, 11:08", hash: "TRX…7a3c" },
-];
+const DEFAULT_ASSETS = ["USD", "BTC", "ETH", "USDC", "USDT"];
 
 interface WalRow { sym: string; qty: number; price: number; value: number; inOrders: number; available: number; name: string; }
-function walCompute(): WalRow[] {
-  return WAL_HOLD.map(h => {
-    const c = COIN(h.sym); const price = c ? c.price : 1;
-    const value = h.qty * price; const inOrders = h.sym === "USDC" ? value * 0.12 : 0;
-    return { ...h, price, value, inOrders, available: value - inOrders, name: c ? c.name : (h.sym === "USDT" ? "Tether" : h.sym) };
-  }).sort((a, b) => b.value - a.value);
-}
 
 
 /* ---- Stripe payment form ---------------------------------------- */
@@ -69,16 +39,24 @@ function StripeCheckoutForm({ clientSecret, amount, asset, onComplete }: { clien
       return;
     }
 
-    const { error: confirmError } = await stripe.confirmPayment({
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
       clientSecret,
       confirmParams: {
-        return_url: `${window.location.origin}/wallet/deposit/success`,
+        return_url: window.location.href,
       },
+      redirect: 'if_required',
     });
 
     if (confirmError) {
       setError(confirmError.message || "Payment failed");
+    } else if (paymentIntent && (paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing')) {
+      try {
+        await api.post('/payments/deposit/verify', { provider_ref: paymentIntent.id });
+      } catch (e) {
+        console.error('Verify error', e);
+      }
+      onComplete();
     } else {
       onComplete();
     }
@@ -162,22 +140,25 @@ function DepositModalContent({ closeModal }: { closeModal: () => void }) {
   );
 }
 
-function WithdrawModalContent({ rows, coinRow, asset, assetOpen, setAssetOpen, setAsset, setNet, closeModal }: any) {
+function WithdrawModalContent({ rows, closeModal }: any) {
   const [payoutAmt, setPayoutAmt] = useState("");
   const [paypalEmail, setPaypalEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  // Strictly enforce USD for withdrawal
+  const usdRow = rows.find((r: any) => r.sym === 'USD' || r.sym === 'USDC') || { qty: 0 };
+  const maxUsd = usdRow.qty;
+
   const handleWithdraw = async () => {
     if (!payoutAmt || isNaN(parseFloat(payoutAmt)) || !paypalEmail) return;
     setLoading(true);
     setError("");
     try {
-      const multiplier = (asset === "USD" || asset === "IDR") ? 100 : 100000000;
       await api.post("/wallet/withdraw", {
-        amount: Math.round(parseFloat(payoutAmt) * multiplier),
-        currency: asset,
+        amount: Math.round(parseFloat(payoutAmt) * 100),
+        currency: "USD",
         paypal_email: paypalEmail
       });
       setSuccess(true);
@@ -191,8 +172,8 @@ function WithdrawModalContent({ rows, coinRow, asset, assetOpen, setAssetOpen, s
     return (
       <div style={{ textAlign: "center", padding: "20px 0" }}>
         <Icon name="checkCircle" size={48} color="var(--up)" />
-        <h3 style={{ font: "700 20px var(--font)", color: "var(--text-hi)", margin: "16px 0 8px" }}>Withdrawal Requested</h3>
-        <p style={{ font: "500 14px var(--font)", color: "var(--text-3)", marginBottom: 24 }}>Your withdrawal is pending admin review.</p>
+        <h3 style={{ font: "700 20px var(--font)", color: "var(--text-hi)", margin: "16px 0 8px" }}>Withdrawal Successful</h3>
+        <p style={{ font: "500 14px var(--font)", color: "var(--text-3)", marginBottom: 24 }}>Your funds have been instantly sent to your PayPal account.</p>
         <button onClick={closeModal} style={{ width: "100%", height: 48, borderRadius: "var(--r-md)", border: "none", cursor: "pointer", background: "var(--blue)", color: "#fff", font: "700 14.5px var(--font)" }}>Done</button>
       </div>
     );
@@ -200,27 +181,24 @@ function WithdrawModalContent({ rows, coinRow, asset, assetOpen, setAssetOpen, s
 
   return (
     <>
-      <AssetSelect rows={rows} asset={asset} coinRow={coinRow} open={assetOpen} setOpen={setAssetOpen} setAsset={setAsset} setNet={setNet} />
       <div style={{ marginBottom: 14 }}>
         <div style={{ font: "500 12px var(--font)", color: "var(--text-3)", marginBottom: 7, display: "flex", justifyContent: "space-between" }}>
-          <span>Amount ({asset})</span>
-          <span style={{ color: "var(--text-4)" }}>Balance: {fNum(coinRow.qty, coinRow.qty < 1 ? 4 : 2)} {asset}</span>
+          <span>Amount (USD)</span>
+          <span style={{ color: "var(--text-4)" }}>Balance: {fNum(maxUsd, 2)} USD</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, height: 48, padding: "0 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)" }}>
+          <span style={{ font: "600 15px var(--mono)", color: "var(--text-3)" }}>$</span>
           <input value={payoutAmt} onChange={e => setPayoutAmt(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" inputMode="decimal" style={{ flex: 1, background: "none", border: "none", outline: "none", color: "var(--text-hi)", font: "600 15px var(--mono)" }} />
-          <button onClick={() => setPayoutAmt(fNum(coinRow.qty, coinRow.qty < 1 ? 6 : 4))} style={{ font: "600 12px var(--font)", color: "var(--blue-hover)", background: "none", border: "none", cursor: "pointer" }}>MAX</button>
-          <span style={{ font: "600 13px var(--font)", color: "var(--text-3)" }}>{asset}</span>
+          <button onClick={() => setPayoutAmt(maxUsd.toString())} style={{ font: "600 12px var(--font)", color: "var(--blue-hover)", background: "none", border: "none", cursor: "pointer" }}>MAX</button>
         </div>
-        {payoutAmt && <div style={{ font: "500 12px var(--font)", color: "var(--text-3)", marginTop: 5 }}>≈ {fUSD((parseFloat(payoutAmt) || 0) * coinRow.price * 0.99)} USD after fees</div>}
       </div>
       <div style={{ marginBottom: 14 }}>
         <div style={{ font: "500 12px var(--font)", color: "var(--text-3)", marginBottom: 7 }}>PayPal Email</div>
         <input value={paypalEmail} onChange={e => setPaypalEmail(e.target.value)} placeholder="your@email.com" type="email" style={{ width: "100%", height: 48, padding: "0 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", outline: "none", color: "var(--text-hi)", font: "500 14px var(--font)", boxSizing: "border-box" }} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 7, padding: "12px 0", marginBottom: 16, borderTop: "1px solid var(--border-soft)", borderBottom: "1px solid var(--border-soft)" }}>
-        <SummaryRow k="Rate" v={fUSD(coinRow.price, coinRow.price < 1 ? 4 : 2) + " / " + asset} />
-        <SummaryRow k="Processing fee" v="1.0%" />
-        <SummaryRow k="You receive" v={payoutAmt ? "≈ " + fUSD((parseFloat(payoutAmt) || 0) * coinRow.price * 0.99) : "—"} />
+        <SummaryRow k="Processing fee" v="Free" />
+        <SummaryRow k="You receive" v={payoutAmt ? `$${fNum(parseFloat(payoutAmt) || 0, 2)}` : "—"} />
       </div>
       {error && <div style={{ color: "var(--warn)", font: "500 13px var(--font)", marginBottom: 10 }}>{error}</div>}
       <button onClick={handleWithdraw} disabled={!payoutAmt || !paypalEmail || loading} style={{ width: "100%", height: 48, borderRadius: "var(--r-md)", border: "none", cursor: (!payoutAmt || !paypalEmail || loading) ? "default" : "pointer", background: (!payoutAmt || !paypalEmail || loading) ? "var(--card-2)" : "var(--blue)", color: (!payoutAmt || !paypalEmail || loading) ? "var(--text-3)" : "#fff", font: "700 14.5px var(--font)" }}>
@@ -384,7 +362,51 @@ const tdWm: CSSProperties = { textAlign: "right", padding: "16px 24px", font: "5
 
 export function WalletPage() {
   useScrollReveal();
-  const rows = walCompute();
+  const { balances, transactions: apiTxns, refresh } = useWalletData();
+
+  const rows = useMemo(() => {
+    const baseMap = new Map<string, WalRow>();
+
+    // Pre-populate default assets with 0 balance
+    DEFAULT_ASSETS.forEach(sym => {
+      const c = COIN(sym);
+      baseMap.set(sym, {
+        sym, qty: 0, price: c ? c.price : 1, value: 0,
+        inOrders: 0, available: 0, name: c ? c.name : (sym === "USDT" ? "Tether" : sym)
+      });
+    });
+
+    // Merge actual backend balances
+    balances.forEach(b => {
+      const c = COIN(b.currency);
+      const price = c ? c.price : 1;
+      baseMap.set(b.currency, {
+        sym: b.currency,
+        qty: b.qty,
+        price,
+        value: b.qty * price,
+        available: b.available,
+        inOrders: b.locked,
+        name: c ? c.name : (b.currency === "USDT" ? "Tether" : b.currency)
+      });
+    });
+
+    // Convert map to array and sort by value
+    return Array.from(baseMap.values()).sort((a, b) => b.value - a.value);
+  }, [balances]);
+
+  const allTxns = useMemo(() => {
+    return apiTxns.map(t => ({
+      type: t.type === 'deposit' ? 'Deposit' : t.type === 'withdrawal' ? 'Withdraw' : 'Transfer',
+      sym: t.currency.toUpperCase(),
+      amt: t.amount / (t.currency.toUpperCase() === 'BTC' ? 100_000_000 : t.currency.toUpperCase() === 'ETH' ? 1_000_000_000_000_000_000 : 100),
+      status: t.status === 'completed' ? 'Completed' : t.status === 'failed' ? 'Failed' : 'Pending',
+      net: 'Drexa',
+      time: new Date(t.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      hash: t.id.substring(0, 12) + '...'
+    }));
+  }, [apiTxns]);
+
   const total = rows.reduce((a, r) => a + r.value, 0);
   const available = rows.reduce((a, r) => a + r.available, 0);
   const inOrders = rows.reduce((a, r) => a + r.inOrders, 0);
@@ -396,8 +418,22 @@ export function WalletPage() {
 
   const coinRow = rows.find(r => r.sym === asset) || rows[0];
   const openModal = (type: string, sym?: string) => { setModal(type); if (sym) { setAsset(sym); setNet(0); } };
-  const closeModal = () => setModal(null);
+  const closeModal = () => { setModal(null); refresh(); };
   const assetSelectProps = { rows, asset, coinRow, open: assetOpen, setOpen: setAssetOpen, setAsset, setNet };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const clientSecret = params.get('payment_intent_client_secret');
+    const paymentIntentId = params.get('payment_intent');
+    const redirectStatus = params.get('redirect_status');
+    
+    if (clientSecret && paymentIntentId && redirectStatus === 'succeeded') {
+      window.history.replaceState({}, '', window.location.pathname);
+      api.post('/payments/deposit/verify', { provider_ref: paymentIntentId }).then(() => {
+         refresh();
+      }).catch(e => console.error(e));
+    }
+  }, [refresh]);
 
   return (
     <AppShell>
@@ -469,7 +505,7 @@ export function WalletPage() {
               <th key={i} style={{ textAlign: i === 2 ? "right" : "left", padding: "12px 24px", font: "600 11px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</th>
             ))}</tr></thead>
             <tbody>
-              {TXNS.map((t, i) => {
+              {allTxns.map((t, i) => {
                 const isDep = t.type === "Deposit", isWd = t.type === "Withdraw";
                 const col = isDep ? "var(--up)" : isWd ? "var(--down)" : "var(--blue-hover)";
                 return (

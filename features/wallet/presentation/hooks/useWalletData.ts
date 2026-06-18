@@ -30,16 +30,47 @@ function normalizeTransaction(tx: WalletTransactionResponse): WalletTransaction 
   };
 }
 
+export interface WalletBalanceResponse {
+  wallet_id: string;
+  currency: string;
+  balance: number;
+  locked: number;
+  available: number;
+  status: string;
+}
+
+export interface ParsedBalance {
+  currency: string;
+  qty: number;
+  available: number;
+  locked: number;
+}
+
+function parseBalance(b: WalletBalanceResponse): ParsedBalance {
+  let divider = 1;
+  const sym = b.currency.toUpperCase();
+  if (sym === 'BTC') divider = 100_000_000; // 10^8
+  else if (sym === 'ETH') divider = 1_000_000_000_000_000_000; // 10^18
+  else if (sym === 'USD' || sym === 'IDR' || sym === 'USDC' || sym === 'USDT') divider = 100;
+
+  return {
+    currency: sym,
+    qty: b.balance / divider,
+    available: b.available / divider,
+    locked: b.locked / divider,
+  };
+}
+
 export function useWalletData(transactionLimit = 20) {
-  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  const [balances, setBalances] = useState<ParsedBalance[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
 
   const fetchBalance = useCallback(async () => {
     try {
-      const data = await api.get<WalletBalance>(`/wallet/balance/${DEFAULT_CURRENCY}`);
-      setWalletBalanceCents(data.balance);
+      const data = await api.get<WalletBalanceResponse[]>(`/wallet/balances`);
+      setBalances((data ?? []).map(parseBalance));
     } catch {
-      setWalletBalanceCents(null);
+      setBalances([]);
     }
   }, []);
 
@@ -68,13 +99,13 @@ export function useWalletData(transactionLimit = 20) {
     void fetchTransactions();
   }, [fetchBalance, fetchTransactions]);
 
-  return useMemo(
-    () => ({
-      walletBalanceCents,
-      walletUsd: walletBalanceCents !== null ? walletBalanceCents / 100 : null,
+  return useMemo(() => {
+    const usdBal = balances.find(b => b.currency === 'USD' || b.currency === 'USDC');
+    return {
+      balances,
+      walletUsd: usdBal ? usdBal.qty : null,
       transactions,
       refresh,
-    }),
-    [walletBalanceCents, transactions, refresh]
-  );
+    };
+  }, [balances, transactions, refresh]);
 }

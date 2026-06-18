@@ -22,13 +22,19 @@ function PaymentForm({ clientSecret, isConfirming, onBack, onSuccess, onError }:
   useEffect(() => {
     if (!isConfirming || !stripe) return;
 
-    stripe.retrievePaymentIntent(clientSecret).then(({ paymentIntent }) => {
+    stripe.retrievePaymentIntent(clientSecret).then(async ({ paymentIntent }) => {
       if (!paymentIntent) {
         onError('Could not retrieve payment status.');
         return;
       }
 
       if (paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing') {
+        try {
+          const { api } = await import('@/lib/api');
+          await api.post('/payments/deposit/verify', { provider_ref: paymentIntent.id });
+        } catch (e) {
+          console.error('Failed to verify deposit with backend', e);
+        }
         onSuccess();
         return;
       }
@@ -52,7 +58,7 @@ function PaymentForm({ clientSecret, isConfirming, onBack, onSuccess, onError }:
     setSubmitting(true);
     const { error } = await stripe.confirmPayment({
       elements,
-      confirmParams: { return_url: `${window.location.origin}/wallet` },
+      confirmParams: { return_url: window.location.href },
       redirect: 'if_required',
     });
 
