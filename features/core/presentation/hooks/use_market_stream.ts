@@ -46,9 +46,9 @@ function connectWebSocket() {
     return;
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-  const wsUrl = baseUrl.replace(/^http/, 'ws') + 'market/ws';
-  
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1').replace(/\/+$/, '');
+  const wsUrl = baseUrl.replace(/^http/, 'ws') + '/market/ws';
+
   sharedWs = new WebSocket(wsUrl);
 
   sharedWs.onopen = () => {
@@ -134,6 +134,74 @@ function disconnectWebSocket() {
   reconnectAttempts = 0;
 }
 
+// ── Binance miniTicker source for live prices ──────────────────────────────
+// The backend /market/ws feed publishes our internal order book (empty in dev),
+// so live prices come straight from Binance — the same source as the candlestick.
+const BINANCE_TICKER_URL =
+  (process.env.NEXT_PUBLIC_BINANCE_WS_URL || 'wss://data-stream.binance.vision/ws') + '/!miniTicker@arr';
+let binanceWs: WebSocket | null = null;
+let binanceReconnect: NodeJS.Timeout | null = null;
+let binanceAttempts = 0;
+
+function connectBinanceTickers() {
+  if (binanceWs && (binanceWs.readyState === WebSocket.CONNECTING || binanceWs.readyState === WebSocket.OPEN)) return;
+  binanceWs = new WebSocket(BINANCE_TICKER_URL);
+
+  binanceWs.onopen = () => {
+    binanceAttempts = 0;
+    sharedIsConnected = true;
+    notifyStatusSubscribers();
+  };
+
+  binanceWs.onmessage = (event) => {
+    try {
+      const arr = JSON.parse(event.data);
+      if (!Array.isArray(arr)) return;
+      let changed = false;
+      const next = { ...sharedTickers };
+      for (const m of arr) {
+        if (m.e !== '24hrMiniTicker' || typeof m.s !== 'string' || !m.s.endsWith('USDT')) continue;
+        const sym = m.s.slice(0, -4);
+        const c = parseFloat(m.c), o = parseFloat(m.o);
+        const ch = o > 0 ? ((c - o) / o) * 100 : 0;
+        const prev = next[sym];
+        if (!prev || prev.price !== c) {
+          next[sym] = { sym, price: c, ch, vol: parseFloat(m.q), high: parseFloat(m.h), low: parseFloat(m.l) };
+          changed = true;
+        }
+      }
+      if (changed) {
+        sharedTickers = next;
+        tickerSubscribers.forEach((s) => s(sharedTickers));
+      }
+    } catch {
+      // ignore malformed frames
+    }
+  };
+
+  binanceWs.onclose = () => {
+    binanceWs = null;
+    const delay = Math.min(1000 * Math.pow(2, binanceAttempts), 30000);
+    binanceReconnect = setTimeout(connectBinanceTickers, delay);
+    binanceAttempts++;
+  };
+
+  binanceWs.onerror = () => { if (binanceWs) binanceWs.close(); };
+}
+
+function disconnectBinanceTickers() {
+  if (binanceReconnect) { clearTimeout(binanceReconnect); binanceReconnect = null; }
+  if (binanceWs) {
+    binanceWs.onopen = null;
+    binanceWs.onmessage = null;
+    binanceWs.onclose = null;
+    binanceWs.onerror = null;
+    binanceWs.close();
+    binanceWs = null;
+  }
+  binanceAttempts = 0;
+}
+
 export function useMarketStream() {
   const [tickers, setTickers] = useState<Record<string, TickerData>>(sharedTickers);
   const [orderbooks, setOrderbooks] = useState<Record<string, OrderBook>>(sharedOrderbooks);
@@ -156,7 +224,8 @@ export function useMarketStream() {
     // Only connect if this is the first subscriber
     if (tickerSubscribers.size === 1) {
       initTimeout = setTimeout(() => {
-        connectWebSocket();
+        connectWebSocket();       // backend order book (/market/ws)
+        connectBinanceTickers();  // live prices (Binance miniTicker)
       }, 50);
     }
 
@@ -169,6 +238,7 @@ export function useMarketStream() {
       // If no more subscribers, disconnect to save resources
       if (tickerSubscribers.size === 0) {
         disconnectWebSocket();
+        disconnectBinanceTickers();
       }
     };
   }, []);

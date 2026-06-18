@@ -8,6 +8,7 @@ import {
   COINS, COIN, fUSD, fNum, fCompact, rng, type Coin,
 } from "@/features/core/presentation/components/drexa_kit";
 import { useMarketStream, type OrderBook as OrderBookData } from "@/features/core/presentation/hooks/use_market_stream";
+import { useBinanceKlines } from "@/features/core/presentation/hooks/use_binance_klines";
 import { usePlaceOrder } from "../hooks/usePlaceOrder";
 import { useOrderBook } from "../hooks/useOrderBook";
 import type { OrderSide, OrderType } from "../../model/order";
@@ -21,7 +22,18 @@ export interface Candle {
   c: number;
 }
 
-function CandleChart({ data, h = 360 }: { data: Candle[]; h?: number }) {
+// Candle count per timeframe — fewer on long ranges so each candle stays readable
+// and the visible price range stays relevant (instead of squishing years of data).
+const TF_LIMIT: Record<string, number> = { "15m": 96, "1H": 90, "4H": 84, "1D": 90, "1W": 60 };
+
+// Axis label format adapts to the timeframe: intraday shows time, daily/weekly shows date.
+function fmtAxisTime(ms: number, tf: string): string {
+  const d = new Date(ms);
+  if (tf === "1D" || tf === "1W") return d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function CandleChart({ data, h = 360, tf = "1H" }: { data: Candle[]; h?: number; tf?: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(720);
   const [hover, setHover] = useState<number | null>(null);
@@ -62,6 +74,16 @@ function CandleChart({ data, h = 360 }: { data: Candle[]; h?: number }) {
               <line x1={cx} y1={y(d.h)} x2={cx} y2={y(d.l)} stroke={col} strokeWidth="1" />
               <rect x={cx - bw / 2} y={Math.min(y(d.o), y(d.c))} width={bw} height={Math.max(1.5, Math.abs(y(d.o) - y(d.c)))} fill={col} rx="0.5" />
             </g>
+          );
+        })}
+        {Array.from({ length: 6 }, (_, i) => {
+          const idx = Math.min(data.length - 1, Math.round((data.length - 1) * i / 5));
+          const cx = padL + idx * step + step / 2;
+          const anchor = i === 0 ? "start" : i === 5 ? "end" : "middle";
+          return (
+            <text key={"x" + i} x={cx} y={h - 7} textAnchor={anchor} fill="var(--text-4)" style={{ font: "500 10px var(--mono)" }}>
+              {fmtAxisTime(data[idx].t, tf)}
+            </text>
           );
         })}
       </svg>
@@ -339,9 +361,8 @@ export function TradePage({ sym: symProp }: { sym?: string }) {
     vol: t?.vol ?? base.vol,
   };
 
-  // Backend doesn't support klines yet. Use an empty array to show "Chart history unavailable"
-  const data: Candle[] = [];
-  const chartLoading = false;
+  // Realtime candlesticks straight from Binance (historical + live last candle), per timeframe.
+  const { candles: data, loading: chartLoading } = useBinanceKlines(sym, tf, TF_LIMIT[tf] ?? 100);
 
   const hi = t?.high ?? coin.price * 1.045;
   const lo = t?.low ?? coin.price * 0.962;
@@ -394,7 +415,7 @@ export function TradePage({ sym: symProp }: { sym?: string }) {
                 ))}
               </div>
               <div style={{ opacity: chartLoading ? 0.45 : 1, transition: "opacity .2s" }}>
-                <CandleChart data={data} h={360} />
+                <CandleChart data={data} h={360} tf={tf} />
               </div>
             </div>
             <OrdersPanel />

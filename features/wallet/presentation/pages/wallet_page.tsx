@@ -65,7 +65,7 @@ function StripeCheckoutForm({ clientSecret, amount, asset, onComplete }: { clien
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-      <PaymentElement onLoadError={(e: { elementType: string; error: { type: string; message: string } }) => {
+      <PaymentElement onLoadError={(e) => {
         console.error("Stripe PaymentElement load error:", e);
         setError(e.error?.message || "Failed to load payment form. Please check your Stripe configuration or try again.");
       }} />
@@ -418,7 +418,11 @@ export function WalletPage() {
 
   const coinRow = rows.find(r => r.sym === asset) || rows[0];
   const openModal = (type: string, sym?: string) => { setModal(type); if (sym) { setAsset(sym); setNet(0); } };
+<<<<<<< master
+  const closeModal = () => { setModal(null); refreshBalances(); };
+=======
   const closeModal = () => { setModal(null); refresh(); };
+>>>>>>> master
   const assetSelectProps = { rows, asset, coinRow, open: assetOpen, setOpen: setAssetOpen, setAsset, setNet };
 
   useEffect(() => {
@@ -534,9 +538,15 @@ export function WalletPage() {
 
       {/* ── DEPOSIT MODAL ─────────────────────────────────────────── */}
       {modal === "deposit" && (
-        <Modal title="Deposit USD" icon="deposit" onClose={closeModal}>
-          <DepositModalContent closeModal={closeModal} />
-        </Modal>
+        isCryptoSupported(asset) ? (
+          <Modal title={`Deposit ${asset}`} icon="deposit" onClose={closeModal}>
+            <CryptoDepositModalContent asset={asset} />
+          </Modal>
+        ) : (
+          <Modal title="Deposit USD" icon="deposit" onClose={closeModal}>
+            <DepositModalContent closeModal={closeModal} />
+          </Modal>
+        )
       )}
 
       {/* ── WITHDRAW MODAL ────────────────────────────────────────── */}
