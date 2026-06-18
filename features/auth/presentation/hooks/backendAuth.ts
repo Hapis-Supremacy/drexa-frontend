@@ -6,5 +6,5 @@ type BackendAuthResponse = {
 };
 
 export async function signInWithBackend(idToken: string): Promise<BackendAuthResponse> {
-  return api.post<BackendAuthResponse>("/auth/signin", { id_token: idToken });
+  return api.post<BackendAuthResponse>("/auth/login", { id_token: idToken });
 }
