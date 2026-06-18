@@ -9,6 +9,7 @@ import {
 } from "@/features/core/presentation/components/drexa_kit";
 import { useMarketStream, type OrderBook as OrderBookData } from "@/features/core/presentation/hooks/use_market_stream";
 import { usePlaceOrder } from "../hooks/usePlaceOrder";
+import { useOrderBook } from "../hooks/useOrderBook";
 import type { OrderSide, OrderType } from "../../model/order";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 
@@ -95,7 +96,11 @@ function OrderBook({ price, ob }: { price: number, ob?: OrderBookData }) {
   );
   return (
     <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden" }}>
-      <div style={{ padding: "16px 18px 12px", font: "700 15px var(--font)", color: "var(--text-hi)" }}>Order book</div>
+      <div style={{ padding: "16px 18px 12px", display: "flex", alignItems: "center", gap: 8, font: "700 15px var(--font)", color: "var(--text-hi)" }}>
+        <span>Order book</span>
+        <span title={rows.live ? "Live depth from matching engine" : "No resting orders — simulated depth"}
+          style={{ width: 7, height: 7, borderRadius: "50%", background: rows.live ? "var(--up)" : "var(--text-4)", boxShadow: rows.live ? "0 0 0 3px var(--up-soft)" : "none" }} />
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "0 14px 8px", font: "600 10.5px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>
         <span>Price (USDC)</span><span>Amount</span>
       </div>
