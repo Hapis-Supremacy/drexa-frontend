@@ -34,7 +34,7 @@ function connectWebSocket() {
   }
 
   // Bypass Next.js API rewrites for WebSockets as it often drops upgrades in dev
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/v1/market/stream';
+  const wsUrl = process.env.NEXT_PUBLIC_API_URL + 'market/stream';
   sharedWs = new WebSocket(wsUrl);
 
   sharedWs.onopen = () => {
@@ -80,20 +80,21 @@ function connectWebSocket() {
     }
   };
 
-  sharedWs.onclose = () => {
+  sharedWs.onclose = (event) => {
     sharedIsConnected = false;
     sharedWs = null;
     notifyStatusSubscribers();
     
     // Exponential backoff
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-    console.log(`Market stream disconnected. Reconnecting in ${delay}ms...`);
+    console.log(`Market stream disconnected (code: ${event.code}, reason: ${event.reason || 'none'}). Reconnecting in ${delay}ms...`);
     reconnectTimeout = setTimeout(connectWebSocket, delay);
     reconnectAttempts++;
   };
 
-  sharedWs.onerror = (error) => {
-    console.error('Market stream error:', error);
+  sharedWs.onerror = () => {
+    // Hide the unhelpful WebSocket error event to prevent Next.js dev overlay from showing
+    // We already log reconnect attempts in onclose anyway.
     if (sharedWs) sharedWs.close();
   };
 }

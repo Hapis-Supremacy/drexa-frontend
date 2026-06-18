@@ -32,13 +32,25 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
     headers,
   }
 
-  let res = await fetch(apiUrl(path), opts)
+  let res = await fetch(apiUrl(path), {
+    ...opts,
+    headers: {
+      ...opts?.headers,
+      "ngrok-skip-browser-warning": "true",
+    },
+  });
 
   // Silent refresh: swap the session cookie and replay the original request once.
   if (retryOnUnauthorized && res.status === 401) {
     const refreshed = await fetch(apiUrl('/auth/refresh'), { method: 'POST', credentials: 'include' })
     if (refreshed.ok) {
-      res = await fetch(apiUrl(path), opts)
+      res = await fetch(apiUrl(path), {
+        ...opts,
+        headers: {
+          ...opts?.headers,
+          "ngrok-skip-browser-warning": "true",
+        },
+      });
     }
   }
 
