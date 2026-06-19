@@ -13,7 +13,6 @@ import { usePlaceOrder } from "../hooks/usePlaceOrder";
 import { useOrders } from "../hooks/useOrders";
 import { useWalletData } from "@/features/wallet/presentation/hooks/useWalletData";
 import type { OrderSide, OrderType } from "../../model/order";
-import { useWalletData } from "@/features/wallet/presentation/hooks/useWalletData";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 
 export interface Candle {
@@ -139,7 +138,7 @@ function OrderBook({ price, ob }: { price: number, ob?: OrderBookData }) {
   );
 }
 
-const ORDER_TYPES = ["Market", "Limit", "Stop-Limit", "OCO"];
+const ORDER_TYPES = ["Market", "Limit"];
 function TicketField({ label, value, onChange, suffix, readOnly }: { label: string; value: string; onChange?: (v: string) => void; suffix: string; readOnly?: boolean }) {
   return (
     <div>
@@ -157,8 +156,6 @@ function OrderTicket({ coin }: { coin: Coin }) {
   const [side, setSide] = useState("buy");
   const [type, setType] = useState("Limit");
   const [price, setPrice] = useState(coin.price.toFixed(coin.price < 10 ? 4 : 2));
-  const [stop, setStop] = useState((coin.price * 0.98).toFixed(coin.price < 10 ? 4 : 2));
-  const [limit, setLimit] = useState((coin.price * 1.02).toFixed(coin.price < 10 ? 4 : 2));
   const [amount, setAmount] = useState("");
   const [pct, setPct] = useState(0);
   // Seed the ticket from the live price only when the pair changes — not on
@@ -166,14 +163,12 @@ function OrderTicket({ coin }: { coin: Coin }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPrice(coin.price.toFixed(coin.price < 10 ? 4 : 2));
-    setStop((coin.price * 0.98).toFixed(coin.price < 10 ? 4 : 2));
-    setLimit((coin.price * 1.02).toFixed(coin.price < 10 ? 4 : 2));
     setAmount(""); setPct(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coin.sym]);
 
   const isBuy = side === "buy";
-  const quoteBalObj = balances.find(b => b.currency === 'USD' || b.currency === 'USDC');
+  const quoteBalObj = balances.find(b => b.currency === 'USDT' || b.currency === 'USD' || b.currency === 'USDC');
   const baseBalObj = balances.find(b => b.currency === coin.sym);
   const balQuote = quoteBalObj?.available ?? 0;
   const balBase = baseBalObj?.available ?? 0;
@@ -201,7 +196,7 @@ function OrderTicket({ coin }: { coin: Coin }) {
     if (!canSubmit) return;
     try {
       await placeOrderMutation.mutateAsync({
-        pair_id: `${coin.sym}_USD`,
+        pair_id: `${coin.sym}_USDT`,
         side: side as OrderSide,
         type: type.toLowerCase() as OrderType,
         quantity: amt,
@@ -234,12 +229,9 @@ function OrderTicket({ coin }: { coin: Coin }) {
         ))}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {type === "Stop-Limit" && <TicketField label="Stop price" value={stop} onChange={setStop} suffix="USD" />}
-        {type === "OCO" && <TicketField label="Take-profit price" value={limit} onChange={setLimit} suffix="USD" />}
-        {type === "OCO" && <TicketField label="Stop price" value={stop} onChange={setStop} suffix="USD" />}
         {type === "Market"
           ? <TicketField label="Price" value="Market price" readOnly suffix="USD" />
-          : (type !== "OCO" && <TicketField label={type === "Stop-Limit" ? "Limit price" : "Price"} value={price} onChange={setPrice} suffix="USD" />)}
+          : <TicketField label="Price" value={price} onChange={setPrice} suffix="USD" />}
         <TicketField label="Amount" value={amount} onChange={(v) => { setAmount(v); setPct(0); }} suffix={coin.sym} />
         <div style={{ display: "flex", gap: 8 }}>
           {[25, 50, 75, 100].map(p => (
@@ -373,15 +365,19 @@ export function TradePage({ sym: symProp }: { sym?: string }) {
   const { tickers, orderbooks, isConnected } = useMarketStream();
   const t = tickers[sym];
   const ob = orderbooks[sym];
-  const coin: Coin = {
-    ...base,
-    price: t?.price && t.price > 0 ? t.price : base.price,
-    ch: t?.ch ?? base.ch,
-    vol: t?.vol ?? base.vol,
-  };
 
   // Realtime candlesticks straight from Binance (historical + live last candle), per timeframe.
   const { candles: data, loading: chartLoading } = useBinanceKlines(sym, tf, TF_LIMIT[tf] ?? 100);
+
+  // Use Binance kline close price for the most accurate real-time price, fallback to gateway stream
+  const livePrice = data.length > 0 ? data[data.length - 1].c : (t?.price && t.price > 0 ? t.price : base.price);
+
+  const coin: Coin = {
+    ...base,
+    price: livePrice,
+    ch: t?.ch ?? base.ch,
+    vol: t?.vol ?? base.vol,
+  };
 
   const hi = t?.high ?? coin.price * 1.045;
   const lo = t?.low ?? coin.price * 0.962;
@@ -393,7 +389,7 @@ export function TradePage({ sym: symProp }: { sym?: string }) {
           <div style={{ position: "relative" }}>
             <button onClick={() => setPairOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
               <CoinBadge sym={sym} size={40} />
-              <span style={{ font: "700 20px var(--font)", color: "var(--text-hi)" }}>{sym}/USD</span>
+              <span style={{ font: "700 20px var(--font)", color: "var(--text-hi)" }}>{sym}/USDT</span>
               <Icon name="chevDown" size={18} color="var(--text-3)" style={{ transform: pairOpen ? "rotate(180deg)" : "none" }} />
             </button>
             {pairOpen && (
@@ -401,7 +397,7 @@ export function TradePage({ sym: symProp }: { sym?: string }) {
                 {COINS.map(c => (
                   <button key={c.sym} onClick={() => { setSym(c.sym); setPairOpen(false); }} className="dd-item" style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "9px 10px", borderRadius: "var(--r-sm)", border: "none", background: "none", cursor: "pointer" }}>
                     <CoinBadge sym={c.sym} size={28} />
-                    <span style={{ flex: 1, textAlign: "left", font: "600 13.5px var(--font)", color: "var(--text-hi)" }}>{c.sym}/USD</span>
+                    <span style={{ flex: 1, textAlign: "left", font: "600 13.5px var(--font)", color: "var(--text-hi)" }}>{c.sym}/USDT</span>
                     <Delta v={c.ch} size={12} />
                   </button>
                 ))}

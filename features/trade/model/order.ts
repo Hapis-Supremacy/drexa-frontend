@@ -1,7 +1,7 @@
 import { api } from "@/lib/api";
 
 export type OrderSide = "buy" | "sell";
-export type OrderType = "market" | "limit" | "stop-limit" | "oco";
+export type OrderType = "market" | "limit";
 export type OrderStatus = "pending" | "open" | "filled" | "partially_filled" | "cancelled" | "rejected";
 
 export interface Order {
