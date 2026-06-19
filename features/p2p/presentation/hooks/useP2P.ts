@@ -9,7 +9,7 @@ import {
   CreateOrderInput, 
   OpenDisputeInput, 
   AdvertisementStatus 
-} from "../model/p2p";
+} from "../../model/p2p";
 
 // ─── Query Hooks ──────────────────────────────────────────────────────────
 
