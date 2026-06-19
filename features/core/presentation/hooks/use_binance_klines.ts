@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchKlines, subscribeKline, TF_TO_INTERVAL, type Candle } from "@/lib/binance";
+import { fetchKlines, TF_TO_INTERVAL, type Candle } from "@/lib/binance";
 
 export type { Candle } from "@/lib/binance";
 
@@ -13,15 +13,14 @@ export type { Candle } from "@/lib/binance";
 export function useBinanceKlines(sym: string, tf: string, limit = 120) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const interval = TF_TO_INTERVAL[tf] ?? "1h";
     let active = true;
-
-    setLoading(true);
-    setCandles([]);
-
+    queueMicrotask(() => {
+      setLoading(true);
+      setCandles([]);
+    });
     fetchKlines(sym, interval, limit)
       .then((data) => {
         if (active) {
@@ -33,35 +32,13 @@ export function useBinanceKlines(sym: string, tf: string, limit = 120) {
         if (active) setLoading(false);
       });
 
-    const unsubscribe = subscribeKline(sym, interval, (candle, closed) => {
-      if (!active) return;
-      setLive(true);
-      setCandles((prev) => {
-        if (prev.length === 0) return [candle];
-        const last = prev[prev.length - 1];
-
-        if (candle.t === last.t) {
-          // Update the still-forming candle in place.
-          const next = prev.slice();
-          next[next.length - 1] = candle;
-          return next;
-        }
-        if (candle.t > last.t) {
-          // A new interval started — append and keep the window bounded.
-          const next = prev.slice(-(limit - 1));
-          next.push(candle);
-          return next;
-        }
-        return prev; // stale frame, ignore
-      });
-    });
-
+    // Removed WebSocket live updates as part of Binance migration.
+    // Candlesticks will be fetched via REST once until the backend provides a kline stream.
+    
     return () => {
       active = false;
-      setLive(false);
-      unsubscribe();
     };
   }, [sym, tf, limit]);
 
-  return { candles, loading, live };
+  return { candles, loading };
 }

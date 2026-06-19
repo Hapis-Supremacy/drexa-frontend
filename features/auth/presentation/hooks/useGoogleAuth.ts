@@ -42,7 +42,7 @@ export const useGoogleAuth = (onSuccessCallback?: () => void): UseGoogleAuthRetu
         setStatus("error");
       }
     },
-    onError: (errorResponse) => {
+    onError: () => {
       setError("Google login was canceled or failed.");
       setStatus("error");
     },

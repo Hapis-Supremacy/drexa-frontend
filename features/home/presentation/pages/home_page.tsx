@@ -61,7 +61,7 @@ export function HomePage() {
   }, [range, tot.value]);
   const curveUp = curve[curve.length - 1] >= curve[0];
 
-  const { walletBalanceCents, transactions } = useWalletData(5);
+  const { walletUsd, transactions } = useWalletData(5);
 
   const movers = useMemo(() => {
     return [...COINS].map(c => ({ ...c, ...tickers[c.sym] })).sort((a, b) => b.ch - a.ch).slice(0, 5);
@@ -101,10 +101,10 @@ export function HomePage() {
                   <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ font: 'var(--small)', color: 'var(--fg-3)', display: 'inline-flex', gap: 6 }}>Today <Delta v={(tot.today / tot.value) * 100} icon /></span>
                     <span style={{ font: 'var(--small)', color: 'var(--fg-3)', display: 'inline-flex', gap: 6 }}>All-time <Delta v={tot.pnlPct} /></span>
-                    {walletBalanceCents !== null && (
-                      <span style={{ font: 'var(--small)', color: 'var(--fg-3)', display: 'inline-flex', gap: 6 }}>
-                        Cash <span style={{ font: '700 13px var(--font-num)', color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(walletBalanceCents / 100)}</span>
-                      </span>
+                    {walletUsd !== null && (
+                      <div style={{ background: 'var(--surface)', padding: '6px 12px', borderRadius: 'var(--r-sm)', font: '500 13px var(--font)', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                        Cash <span style={{ font: '700 13px var(--font-num)', color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(walletUsd)}</span>
+                      </div>
                     )}
                   </div>
                 </div>

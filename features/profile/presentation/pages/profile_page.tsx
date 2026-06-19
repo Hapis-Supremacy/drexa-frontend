@@ -5,7 +5,7 @@ import { CSSProperties, ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/features/core/presentation/components/app_shell";
-import { Icon, Container, Avatar, USER } from "@/features/core/presentation/components/drexa_kit";
+import { Icon, Container, Avatar } from "@/features/core/presentation/components/drexa_kit";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 import { api } from "@/lib/api";
 import { useUser, clearUserCache } from "@/features/auth/presentation/hooks/useUser";

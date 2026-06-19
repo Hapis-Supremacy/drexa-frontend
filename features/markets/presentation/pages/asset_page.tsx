@@ -100,15 +100,19 @@ export function AssetPage({ sym }: { sym: string }) {
   // Update with WebSocket live ticker data
   useEffect(() => {
     if (tickers[sym]) {
-      setCoin(c => ({ 
-        ...c, 
-        price: tickers[sym].price || c.price,
-        ch: tickers[sym].ch || c.ch,
-        vol: tickers[sym].vol || c.vol,
-      }));
-      setChartData([tickers[sym].price || mockCoin.price]);
+      queueMicrotask(() => {
+        setCoin(c => ({ 
+          ...c, 
+          price: tickers[sym].price || c.price,
+          ch: tickers[sym].ch || c.ch,
+          vol: tickers[sym].vol || c.vol,
+        }));
+        setChartData([tickers[sym].price || mockCoin.price]);
+      });
     } else {
-      setChartData([mockCoin.price]);
+      queueMicrotask(() => {
+        setChartData([mockCoin.price]);
+      });
     }
   }, [tickers, sym, mockCoin.price]);
 
