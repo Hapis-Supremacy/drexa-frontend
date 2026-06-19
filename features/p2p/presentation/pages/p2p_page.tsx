@@ -17,11 +17,7 @@ import {
 import { P2PAdvertisement, P2POrder } from "../../model/p2p";
 
 const PAY_METHODS = ["Bank Transfer", "BCA", "Mandiri", "BRI", "OVO", "GoPay", "Dana", "LinkAja"];
-const ASSETS = ["USDT", "USDC", "BTC", "ETH"];
-
-function fIDR(val: number) {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
-}
+const ASSETS = ["BTC", "ETH", "SOL", "USDT", "BNB"];
 
 export function P2PPage() {
   useScrollReveal();
@@ -42,7 +38,7 @@ export function P2PPage() {
   const [amount, setAmount] = useState("");
   const [pay, setPay] = useState("All");
 
-  const pair_id = `${asset}_IDR`;
+  const pair_id = `${asset}_USD`;
 
   // Hooks
   const { ads, mutate: refreshAds } = useP2PAds({
@@ -135,7 +131,7 @@ export function P2PPage() {
               <div style={{ flex: 1 }} />
               <label style={{ display: "flex", alignItems: "center", gap: 8, height: 42, padding: "0 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", width: 200 }}>
                 <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount limits" inputMode="decimal" style={{ flex: 1, background: "none", border: "none", outline: "none", color: "var(--text-hi)", font: "500 13.5px var(--font)", width: "100%" }} />
-                <span style={{ font: "600 12.5px var(--font)", color: "var(--text-3)" }}>IDR</span>
+                <span style={{ font: "600 12.5px var(--font)", color: "var(--text-3)" }}>USD</span>
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: 8, height: 42, padding: "0 8px 0 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)" }}>
                 <Icon name="bank" size={15} color="var(--text-3)" />
@@ -173,11 +169,11 @@ export function P2PPage() {
                       </td>
                       <td style={{ padding: "18px 24px" }}>
                         <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                          <span style={{ font: "700 18px var(--mono)", color: "var(--text-hi)", fontVariantNumeric: "tabular-nums" }}>{fIDR(o.price)}</span>
+                          <span style={{ font: "700 18px var(--mono)", color: "var(--text-hi)", fontVariantNumeric: "tabular-nums" }}>{fUSD(o.price)}</span>
                         </div>
                       </td>
                       <td style={{ padding: "18px 24px" }}>
-                        <div style={{ font: "500 12.5px var(--font)", color: "var(--text-3)", marginTop: 3 }}>Limit {fIDR(o.min_amount)} – {fIDR(o.max_amount)}</div>
+                        <div style={{ font: "500 12.5px var(--font)", color: "var(--text-3)", marginTop: 3 }}>Limit {fUSD(o.min_amount)} – {fUSD(o.max_amount)}</div>
                       </td>
                       <td style={{ padding: "18px 24px" }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxWidth: 220 }}>
@@ -210,7 +206,7 @@ export function P2PPage() {
           <div data-reveal="1" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
             <h2 style={{ padding: "20px 24px", margin: 0, font: "600 16px var(--font)", borderBottom: "1px solid var(--border)" }}>My Orders</h2>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>{["Order ID", "Role", "Amount", "Total IDR", "Status", "Date"].map((h, i) => (
+              <thead><tr>{["Order ID", "Role", "Amount", "Total USD", "Status", "Date"].map((h, i) => (
                 <th key={i} style={{ textAlign: "left", padding: "15px 24px", font: "600 11px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</th>
               ))}</tr></thead>
               <tbody>
@@ -221,7 +217,7 @@ export function P2PPage() {
                       <td style={{ padding: "18px 24px", font: "500 13px var(--mono)", color: "var(--text-hi)" }}>{o.p2p_order_id.split("-")[0]}...</td>
                       <td style={{ padding: "18px 24px", font: "600 13px var(--font)", color: isBuyer ? "var(--up)" : "var(--down)" }}>{isBuyer ? "Buyer" : "Seller"}</td>
                       <td style={{ padding: "18px 24px", font: "500 14px var(--mono)", color: "var(--text-hi)" }}>{o.amount} Crypto</td>
-                      <td style={{ padding: "18px 24px", font: "500 14px var(--mono)", color: "var(--text-hi)" }}>{fIDR(o.total_idr)}</td>
+                      <td style={{ padding: "18px 24px", font: "500 14px var(--mono)", color: "var(--text-hi)" }}>{fUSD(o.total_usd)}</td>
                       <td style={{ padding: "18px 24px" }}>
                         <span style={{ padding: "4px 8px", borderRadius: "var(--r-sm)", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase",
                           background: o.status === "created" ? "var(--blue-soft)" : o.status === "paid" ? "var(--warn-soft)" : o.status === "released" ? "var(--up-soft)" : o.status === "cancelled" ? "var(--surface)" : "var(--down-soft)",
@@ -249,8 +245,8 @@ export function P2PPage() {
                 {myAdsList.map((a) => (
                   <tr key={a.advertisement_id} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
                     <td style={{ padding: "18px 24px", font: "600 14px var(--font)", color: "var(--text-hi)" }}>{a.pair_id}</td>
-                    <td style={{ padding: "18px 24px", font: "500 14px var(--mono)", color: "var(--text-hi)" }}>{fIDR(a.price)}</td>
-                    <td style={{ padding: "18px 24px", font: "500 13px var(--mono)", color: "var(--text-hi)" }}>{fIDR(a.min_amount)} - {fIDR(a.max_amount)}</td>
+                    <td style={{ padding: "18px 24px", font: "500 14px var(--mono)", color: "var(--text-hi)" }}>{fUSD(a.price)}</td>
+                    <td style={{ padding: "18px 24px", font: "500 13px var(--mono)", color: "var(--text-hi)" }}>{fUSD(a.min_amount)} - {fUSD(a.max_amount)}</td>
                     <td style={{ padding: "18px 24px", font: "500 13px var(--font)", color: "var(--text-2)" }}>{a.payment_method}</td>
                     <td style={{ padding: "18px 24px" }}>
                        <span style={{ padding: "4px 8px", borderRadius: "var(--r-sm)", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase",
@@ -289,7 +285,7 @@ export function P2PPage() {
         <CreateOrderModal 
           ad={orderModalAd} 
           onClose={() => setOrderModalAd(null)} 
-          onSuccess={(newOrder) => { setOrderModalAd(null); setDetailModalOrder(newOrder); refreshAll(); }} 
+          onSuccess={(newOrder: P2POrder) => { setOrderModalAd(null); setDetailModalOrder(newOrder); refreshAll(); }} 
           createOrder={createOrder} 
         />
       )}
@@ -330,7 +326,7 @@ function CreateAdModal({ onClose, onSuccess, createAd }: any) {
     e.preventDefault();
     try {
       await createAd.mutate({
-        pair_id: `${asset}_IDR`,
+        pair_id: `${asset}_USD`,
         price: parseFloat(price),
         min_amount: parseFloat(minAmt),
         max_amount: parseFloat(maxAmt),
@@ -356,7 +352,7 @@ function CreateAdModal({ onClose, onSuccess, createAd }: any) {
             </select>
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)" }}>
-            Price (IDR)
+            Price (USD)
             <input required type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 15500" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
           </label>
         </div>
@@ -403,7 +399,7 @@ function CreateOrderModal({ ad, onClose, onSuccess, createOrder }: any) {
   const [amount, setAmount] = useState("");
   const [address, setAddress] = useState("");
   
-  const totalIDR = (parseFloat(amount) || 0) * ad.price;
+  const totalUSD = (parseFloat(amount) || 0) * ad.price;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -421,7 +417,7 @@ function CreateOrderModal({ ad, onClose, onSuccess, createOrder }: any) {
     <ModalBackdrop onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ width: 400, background: "var(--card)", borderRadius: "var(--r-lg)", padding: 24, border: "1px solid var(--border)", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
         <h3 style={{ marginTop: 0, marginBottom: 8, font: "600 20px var(--font)" }}>Buy {ad.pair_id.split("_")[0]}</h3>
-        <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "var(--text-3)" }}>Rate: {fIDR(ad.price)} • Limits: {ad.min_amount} - {ad.max_amount} Crypto</p>
+        <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "var(--text-3)" }}>Rate: {fUSD(ad.price)} • Limits: {ad.min_amount} - {ad.max_amount} Crypto</p>
         
         {createOrder.error && <div style={{ padding: 12, background: "var(--down-soft)", color: "var(--down)", borderRadius: "var(--r-sm)", marginBottom: 16, fontSize: 13 }}>{createOrder.error.message}</div>}
 
@@ -432,7 +428,7 @@ function CreateOrderModal({ ad, onClose, onSuccess, createOrder }: any) {
 
         <div style={{ padding: 14, background: "var(--inset)", borderRadius: "var(--r-sm)", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 13, color: "var(--text-3)" }}>I will pay</span>
-          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-hi)", fontFamily: "var(--mono)" }}>{fIDR(totalIDR)}</span>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-hi)", fontFamily: "var(--mono)" }}>{fUSD(totalUSD)}</span>
         </div>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)", marginBottom: 24 }}>
@@ -490,7 +486,7 @@ function OrderDetailModal({ order, uid, onClose, onRefresh, mutations }: any) {
           </div>
           <div>
             <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}>Total Fiat</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)", fontFamily: "var(--mono)" }}>{fIDR(order.total_idr)}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)", fontFamily: "var(--mono)" }}>{fUSD(order.total_usd)}</div>
           </div>
           <div>
             <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}>Crypto Amount</div>

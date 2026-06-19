@@ -24,7 +24,7 @@ export interface P2POrder {
   buyer_id: string;
   seller_id: string;
   amount: number;
-  total_idr: number;
+  total_usd: number;
   status: OrderStatus;
   payment_proof_url?: string;
   escrow_wallet_id?: string;
