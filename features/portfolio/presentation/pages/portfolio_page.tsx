@@ -11,17 +11,12 @@ import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_r
 
 import { useLedgerBalances, toMainUnit } from "@/features/wallet/presentation/hooks/useLedgerBalances";
 import { useMarketStream } from "@/features/core/presentation/hooks/use_market_stream";
+import { useOrders } from "@/features/trade/presentation/hooks/useOrders";
 import { useMemo } from "react";
 
 const PF_COLOR: Record<string, string> = { BTC: "#F7931A", ETH: "#627EEA", SOL: "#9945FF", LINK: "#2A5ADA", USDC: "#2775CA" };
 
 interface PfRow { sym: string; qty: number; avg: number; price: number; ch: number; value: number; cost: number; pnl: number; pnlPct: number; name: string; }
-function pfCurve(seed: number, n: number, vol: number, end: number) {
-  const r = rng(seed); const raw = [1];
-  for (let i = 1; i < n; i++) raw.push(Math.max(0.2, raw[i - 1] * (1 + (r() - 0.45) * vol)));
-  const f = end / raw[raw.length - 1]; return raw.map(v => v * f);
-}
-
 const PTF: [string, number, number][] = [["1W", 113, 0.05], ["1M", 131, 0.07], ["3M", 141, 0.09], ["1Y", 151, 0.12], ["All", 173, 0.16]];
 const tdRm: CSSProperties = { textAlign: "right", padding: "14px 24px", font: "500 13.5px var(--mono)", color: "var(--text-2)", fontVariantNumeric: "tabular-nums" };
 
@@ -31,21 +26,63 @@ export function PortfolioPage() {
   
   const { balances, loading } = useLedgerBalances();
   const { getTicker } = useMarketStream();
+  const { trades } = useOrders();
 
   const pf = useMemo(() => {
+    const runningMap: Record<string, { qty: number; cost: number }> = {};
+    const costCurve: number[] = [0];
+    
+    const sortedTrades = [...trades].sort((a, b) => new Date(a.executed_at).getTime() - new Date(b.executed_at).getTime());
+    
+    for (const t of sortedTrades) {
+      const base = t.pair_id.split("_")[0];
+      if (!runningMap[base]) runningMap[base] = { qty: 0, cost: 0 };
+      
+      if (t.side === "buy") {
+        runningMap[base].qty += t.quantity;
+        runningMap[base].cost += t.quantity * t.price;
+      } else if (t.side === "sell") {
+        if (runningMap[base].qty > 0) {
+          const avgCost = runningMap[base].cost / runningMap[base].qty;
+          runningMap[base].qty -= t.quantity;
+          runningMap[base].cost -= t.quantity * avgCost;
+        }
+        if (runningMap[base].qty <= 0) {
+          runningMap[base].qty = 0;
+          runningMap[base].cost = 0;
+        }
+      }
+      const totalInvested = Object.values(runningMap).reduce((acc, asset) => acc + asset.cost, 0);
+      costCurve.push(totalInvested);
+    }
+    
+    const costBasisMap: Record<string, number> = {};
+    for (const base in runningMap) {
+      costBasisMap[base] = runningMap[base].qty > 0 ? runningMap[base].cost / runningMap[base].qty : 0;
+    }
+
     const rows: PfRow[] = Object.values(balances).filter(b => b.balance > 0).map(b => {
       const sym = b.currency;
       const qty = toMainUnit(sym, b.balance);
       const c = COIN(sym);
       const ticker = getTicker(sym);
       
-      const price = ticker?.price || (c ? c.price : 1);
+      let fallbackPrice = 0;
+      if (sym === "USDT" || sym === "USDC" || sym === "USD") fallbackPrice = 1;
+      else if (sym === "IDR") fallbackPrice = 0.0000625; // approx 1 USD = 16000 IDR
+      
+      const price = ticker?.price || (c ? c.price : fallbackPrice);
       const ch = ticker?.ch || (c ? c.ch : 0);
       
-      const avg = 0; // Backend does not track average cost yet
+      let avg = costBasisMap[sym] || 0;
+      const isFiatOrStable = sym === "USDT" || sym === "USDC" || sym === "USD" || sym === "IDR";
+      if (avg === 0 && isFiatOrStable) {
+        avg = price; // Treat cash/stablecoins as having a cost basis equal to their value (0 PnL)
+      }
+      
       const cost = qty * avg;
       const value = qty * price;
-      const pnl = value - cost;
+      const pnl = cost > 0 ? value - cost : 0;
       
       return { 
         sym, qty, avg, price, ch, value, cost, pnl, 
@@ -56,20 +93,23 @@ export function PortfolioPage() {
 
     const value = rows.reduce((a, r) => a + r.value, 0);
     const cost = rows.reduce((a, r) => a + r.cost, 0);
-    return { rows, value, cost, pnl: value - cost, pnlPct: cost ? ((value - cost) / cost) * 100 : 0 };
-  }, [balances, getTicker]);
+    
+    if (costCurve.length === 1) costCurve.push(0);
+    costCurve.push(value); 
+    
+    return { rows, value, cost, pnl: value - cost, pnlPct: cost ? ((value - cost) / cost) * 100 : 0, costCurve };
+  }, [balances, getTicker, trades]);
 
-  const conf = PTF.find(t => t[0] === tf)!;
-  const curve = pfCurve(conf[1], 60, conf[2], pf.value);
-  const periodReturn = pf.value - curve[0];
-  const periodPct = (periodReturn / curve[0]) * 100;
-  const slices = pf.rows.map(r => ({ ...r, color: PF_COLOR[r.sym] || "#1E2B44", pct: (r.value / pf.value) * 100 }));
-  const best = [...pf.rows].sort((a, b) => b.pnlPct - a.pnlPct)[0];
+  const curve = pf.costCurve;
+  const periodReturn = pf.pnl;
+  const periodPct = pf.pnlPct;
+  const slices = pf.rows.map(r => ({ ...r, color: PF_COLOR[r.sym] || "#1E2B44", pct: pf.value > 0 ? (r.value / pf.value) * 100 : 0 }));
+  const best = [...pf.rows].filter(r => r.cost > 0).sort((a, b) => b.pnlPct - a.pnlPct)[0];
 
   const stats: { label: string; val: string; pct?: number; up?: boolean }[] = [
-    { label: "Total invested", val: "N/A" }, // Temporarily hide cost basis since it's not tracked
+    { label: "Total invested", val: fUSD(pf.cost) },
     { label: "Current value", val: loading ? "..." : fUSD(pf.value) },
-    { label: "Total return", val: "N/A" },
+    { label: "Total return", val: fUSD(pf.pnl), pct: pf.pnlPct, up: pf.pnl >= 0 },
     { label: "Best performer", val: best ? best.sym : "-", pct: best?.pnlPct || 0, up: (best?.pnlPct || 0) >= 0 },
   ];
 
@@ -87,10 +127,10 @@ export function PortfolioPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <DeltaPill v={periodPct} />
                 <span style={{ font: "500 14px var(--mono)", color: periodReturn >= 0 ? "var(--up)" : "var(--down)" }}>{periodReturn >= 0 ? "+" : "−"}{fUSD(Math.abs(periodReturn))}</span>
-                <span style={{ font: "500 13.5px var(--font)", color: "var(--text-3)" }}>past {tf === "All" ? "all time" : tf}</span>
+                <span style={{ font: "500 13.5px var(--font)", color: "var(--text-3)" }}>all time return</span>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 4, background: "var(--inset)", padding: 4, borderRadius: "var(--r-pill)", border: "1px solid var(--border)" }}>
+            <div style={{ display: "none" }}>
               {PTF.map(([id]) => (
                 <button key={id} onClick={() => setTf(id)} style={{ padding: "7px 15px", borderRadius: "var(--r-pill)", border: "none", cursor: "pointer",
                   background: tf === id ? "var(--blue)" : "transparent", color: tf === id ? "#fff" : "var(--text-3)", font: "600 13px var(--font)" }}>{id}</button>
@@ -154,8 +194,18 @@ export function PortfolioPage() {
                     <td style={tdRm}>{fUSD(r.price, r.price < 10 ? 4 : 2)}</td>
                     <td style={{ ...tdRm, color: "var(--text-hi)", fontWeight: 600 }}>{fUSD(r.value)}</td>
                     <td style={{ textAlign: "right", padding: "14px 24px" }}>
-                      <div style={{ font: "600 13.5px var(--mono)", color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>N/A</div>
-                      <div style={{ marginTop: 2, font: "500 11px var(--font)", color: "var(--text-4)" }}>No cost data</div>
+                      {r.cost > 0 ? (
+                        <>
+                          <div style={{ font: "600 13.5px var(--mono)", color: r.pnl >= 0 ? "var(--up)" : "var(--down)", fontVariantNumeric: "tabular-nums" }}>
+                            {r.pnl >= 0 ? "+" : "−"}{fUSD(Math.abs(r.pnl))}
+                          </div>
+                          <div style={{ marginTop: 2, font: "500 11px var(--font)", color: r.pnl >= 0 ? "var(--up)" : "var(--down)" }}>
+                            {r.pnl >= 0 ? "+" : "−"}{Math.abs(r.pnlPct).toFixed(2)}%
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ font: "600 13.5px var(--mono)", color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>N/A</div>
+                      )}
                     </td>
                   </tr>
                 ))}
