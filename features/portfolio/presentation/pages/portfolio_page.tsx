@@ -5,7 +5,7 @@ import { CSSProperties, useState } from "react";
 import { AppShell } from "@/features/core/presentation/components/app_shell";
 import {
   Container, CoinBadge, Delta, DeltaPill, Donut, AreaChart,
-  COIN, fUSD, fNum, fCompact, rng,
+  COIN, fNum, fCompact,
 } from "@/features/core/presentation/components/drexa_kit";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 
@@ -13,6 +13,27 @@ import { useLedgerBalances, toMainUnit } from "@/features/wallet/presentation/ho
 import { useMarketStream } from "@/features/core/presentation/hooks/use_market_stream";
 import { useOrders } from "@/features/trade/presentation/hooks/useOrders";
 import { useMemo } from "react";
+
+// Fiat currencies excluded from crypto portfolio tracking
+const FIAT = new Set(["IDR", "USD", "EUR", "GBP", "SGD"]);
+const STABLECOIN = new Set(["USDT", "USDC", "DAI", "BUSD"]);
+
+// Approximate IDR/USDT rate used to detect and convert IDR-denominated WebSocket prices.
+// If the backend WebSocket sends BTC price in IDR (~1,040,000,000), this brings it back
+// to ~65,000 USDT before being stored in portfolio value.
+const IDR_PER_USDT = 16_000;
+
+/** Normalize any incoming price to USDT denomination. */
+function normalizeToUsdt(sym: string, wsPrice: number | undefined, mockPriceUsdt: number): number {
+  if (STABLECOIN.has(sym)) return 1;
+  if (!wsPrice || wsPrice <= 0) return mockPriceUsdt;
+  // If wsPrice is more than 200× the CoinGecko/mock USD price, assume IDR denomination
+  if (mockPriceUsdt > 0 && wsPrice > mockPriceUsdt * 200) return wsPrice / IDR_PER_USDT;
+  return wsPrice;
+}
+
+/** Format a number as USDT. */
+const fUSDT = (n: number, dp = 2) => fNum(n, dp) + " USDT";
 
 const PF_COLOR: Record<string, string> = { BTC: "#F7931A", ETH: "#627EEA", SOL: "#9945FF", LINK: "#2A5ADA", USDC: "#2775CA" };
 
@@ -61,23 +82,23 @@ export function PortfolioPage() {
       costBasisMap[base] = runningMap[base].qty > 0 ? runningMap[base].cost / runningMap[base].qty : 0;
     }
 
-    const rows: PfRow[] = Object.values(balances).filter(b => b.balance > 0).map(b => {
+    const rows: PfRow[] = Object.values(balances)
+      .filter(b => b.balance > 0 && !FIAT.has(b.currency))
+      .map(b => {
       const sym = b.currency;
       const qty = toMainUnit(sym, b.balance);
       const c = COIN(sym);
       const ticker = getTicker(sym);
-      
-      let fallbackPrice = 0;
-      if (sym === "USDT" || sym === "USDC" || sym === "USD") fallbackPrice = 1;
-      else if (sym === "IDR") fallbackPrice = 0.0000625; // approx 1 USD = 16000 IDR
-      
-      const price = ticker?.price || (c ? c.price : fallbackPrice);
+
+      // CoinGecko mock price is the reliable USDT baseline (USD ≈ USDT)
+      const mockPrice = c ? c.price : (STABLECOIN.has(sym) ? 1 : 0);
+      // normalizeToUsdt guards against IDR-denominated WebSocket prices
+      const price = normalizeToUsdt(sym, ticker?.price, mockPrice);
       const ch = ticker?.ch || (c ? c.ch : 0);
-      
+
       let avg = costBasisMap[sym] || 0;
-      const isFiatOrStable = sym === "USDT" || sym === "USDC" || sym === "USD" || sym === "IDR";
-      if (avg === 0 && isFiatOrStable) {
-        avg = price; // Treat cash/stablecoins as having a cost basis equal to their value (0 PnL)
+      if (avg === 0 && STABLECOIN.has(sym)) {
+        avg = 1; // Stablecoins always cost 1 USDT — zero P&L
       }
       
       const cost = qty * avg;
@@ -107,9 +128,9 @@ export function PortfolioPage() {
   const best = [...pf.rows].filter(r => r.cost > 0).sort((a, b) => b.pnlPct - a.pnlPct)[0];
 
   const stats: { label: string; val: string; pct?: number; up?: boolean }[] = [
-    { label: "Total invested", val: fUSD(pf.cost) },
-    { label: "Current value", val: loading ? "..." : fUSD(pf.value) },
-    { label: "Total return", val: fUSD(pf.pnl), pct: pf.pnlPct, up: pf.pnl >= 0 },
+    { label: "Total invested", val: fUSDT(pf.cost) },
+    { label: "Current value", val: loading ? "..." : fUSDT(pf.value) },
+    { label: "Total return", val: (pf.pnl >= 0 ? "+" : "−") + fUSDT(Math.abs(pf.pnl)), pct: pf.pnlPct, up: pf.pnl >= 0 },
     { label: "Best performer", val: best ? best.sym : "-", pct: best?.pnlPct || 0, up: (best?.pnlPct || 0) >= 0 },
   ];
 
@@ -123,10 +144,10 @@ export function PortfolioPage() {
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{ font: "500 13.5px var(--font)", color: "var(--text-3)" }}>Portfolio value</div>
-              <div style={{ font: "600 42px var(--mono)", color: "var(--text-hi)", letterSpacing: "-.02em", margin: "6px 0 10px", fontVariantNumeric: "tabular-nums" }}>{fUSD(pf.value)}</div>
+              <div style={{ font: "600 42px var(--mono)", color: "var(--text-hi)", letterSpacing: "-.02em", margin: "6px 0 10px", fontVariantNumeric: "tabular-nums" }}>{fNum(pf.value, 2)} <span style={{ font: "500 22px var(--mono)", color: "var(--text-3)" }}>USDT</span></div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <DeltaPill v={periodPct} />
-                <span style={{ font: "500 14px var(--mono)", color: periodReturn >= 0 ? "var(--up)" : "var(--down)" }}>{periodReturn >= 0 ? "+" : "−"}{fUSD(Math.abs(periodReturn))}</span>
+                <span style={{ font: "500 14px var(--mono)", color: periodReturn >= 0 ? "var(--up)" : "var(--down)" }}>{periodReturn >= 0 ? "+" : "−"}{fUSDT(Math.abs(periodReturn))}</span>
                 <span style={{ font: "500 13.5px var(--font)", color: "var(--text-3)" }}>all time return</span>
               </div>
             </div>
@@ -158,7 +179,7 @@ export function PortfolioPage() {
             <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
               <Donut slices={slices} size={188} />
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ font: "500 11.5px var(--font)", color: "var(--text-3)" }}>Total</span>
+                <span style={{ font: "500 11.5px var(--font)", color: "var(--text-3)" }}>USDT</span>
                 <span style={{ font: "600 19px var(--mono)", color: "var(--text-hi)" }}>{fCompact(pf.value)}</span>
               </div>
             </div>
@@ -167,7 +188,7 @@ export function PortfolioPage() {
                 <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flex: "none" }} />
                   <span style={{ font: "600 13.5px var(--font)", color: "var(--text-hi)", flex: 1 }}>{s.sym}</span>
-                  <span style={{ font: "500 13px var(--mono)", color: "var(--text-2)" }}>{fUSD(s.value)}</span>
+                  <span style={{ font: "500 13px var(--mono)", color: "var(--text-2)" }}>{fUSDT(s.value)}</span>
                   <span style={{ font: "500 13px var(--mono)", color: "var(--text-3)", width: 50, textAlign: "right" }}>{s.pct.toFixed(1)}%</span>
                 </div>
               ))}
@@ -175,9 +196,9 @@ export function PortfolioPage() {
           </div>
 
           <div data-reveal="slide-right" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
-            <div style={{ padding: "20px 24px", font: "700 16px var(--font)", color: "var(--text-hi)", borderBottom: "1px solid var(--border)" }}>Asset breakdown</div>
+            <div style={{ padding: "20px 24px", font: "700 16px var(--font)", color: "var(--text-hi)", borderBottom: "1px solid var(--border)" }}>Asset breakdown <span style={{ font: "500 13px var(--font)", color: "var(--text-3)", marginLeft: 6 }}>· all values in USDT</span></div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>{["Asset", "Holdings", "Avg cost", "Price", "Value", "Profit / Loss"].map((h, i) => (
+              <thead><tr>{["Asset", "Holdings", "Avg cost", "Price", "Value (USDT)", "Profit / Loss"].map((h, i) => (
                 <th key={i} style={{ textAlign: i === 0 ? "left" : "right", padding: "13px 24px", font: "600 11px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</th>
               ))}</tr></thead>
               <tbody>
@@ -190,14 +211,14 @@ export function PortfolioPage() {
                       </div>
                     </td>
                     <td style={tdRm}>{fNum(r.qty, r.qty < 1 ? 4 : 2)}</td>
-                    <td style={tdRm}>{fUSD(r.avg, r.avg < 10 ? 4 : 2)}</td>
-                    <td style={tdRm}>{fUSD(r.price, r.price < 10 ? 4 : 2)}</td>
-                    <td style={{ ...tdRm, color: "var(--text-hi)", fontWeight: 600 }}>{fUSD(r.value)}</td>
+                    <td style={tdRm}>{fUSDT(r.avg, r.avg < 10 ? 4 : 2)}</td>
+                    <td style={tdRm}>{fUSDT(r.price, r.price < 10 ? 4 : 2)}</td>
+                    <td style={{ ...tdRm, color: "var(--text-hi)", fontWeight: 600 }}>{fUSDT(r.value)}</td>
                     <td style={{ textAlign: "right", padding: "14px 24px" }}>
                       {r.cost > 0 ? (
                         <>
                           <div style={{ font: "600 13.5px var(--mono)", color: r.pnl >= 0 ? "var(--up)" : "var(--down)", fontVariantNumeric: "tabular-nums" }}>
-                            {r.pnl >= 0 ? "+" : "−"}{fUSD(Math.abs(r.pnl))}
+                            {r.pnl >= 0 ? "+" : "−"}{fUSDT(Math.abs(r.pnl))}
                           </div>
                           <div style={{ marginTop: 2, font: "500 11px var(--font)", color: r.pnl >= 0 ? "var(--up)" : "var(--down)" }}>
                             {r.pnl >= 0 ? "+" : "−"}{Math.abs(r.pnlPct).toFixed(2)}%
