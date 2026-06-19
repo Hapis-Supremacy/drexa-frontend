@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
 import { Icon, Logo } from "@/features/core/presentation/components/drexa_kit";
+import { useUser } from "@/features/auth/presentation/hooks/useUser";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -11,30 +10,11 @@ type AuthGuardProps = {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
-  const [isAllowed, setIsAllowed] = useState(false);
-  const [needsLogin, setNeedsLogin] = useState(false);
+  const { loading, error, user } = useUser();
 
-  useEffect(() => {
-    let isMounted = true;
+  if (loading) return null;
 
-    const checkSession = async () => {
-      try {
-        await api.post("/auth/refresh", undefined, { retryOnUnauthorized: false });
-        if (isMounted) setIsAllowed(true);
-      } catch {
-        if (!isMounted) return;
-        setNeedsLogin(true);
-      }
-    };
-
-    checkSession();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
-
-  if (needsLogin) {
+  if (error || !user) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", width: 620, height: 620, background: "rgba(26,111,212,0.12)", borderRadius: "50%", filter: "blur(120px)", pointerEvents: "none", zIndex: 0 }} />
@@ -72,8 +52,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
       </div>
     );
   }
-
-  if (!isAllowed) return null;
 
   return <>{children}</>;
 }

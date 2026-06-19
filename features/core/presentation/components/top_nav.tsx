@@ -3,8 +3,10 @@
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { TIcon, btnGhost } from './primitives';
-import { portfolioTotals } from '@/features/core/domain/data/mock_data';
+import { coinOf } from '@/features/core/domain/data/mock_data';
 import { fmtUSD } from '@/features/core/domain/data/trading_utils';
+import { useWalletData } from '@/features/wallet/presentation/hooks/useWalletData';
+import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
 import { api } from '@/lib/api';
 
 const NAV_ITEMS = [
@@ -29,7 +31,9 @@ export function TopNav() {
   const router  = useRouter();
   const pathname = usePathname();
   const active  = activeId(pathname);
-  const bal     = portfolioTotals().value;
+  const { balances } = useWalletData();
+  const { tickers } = useMarketStream();
+  const bal = balances.reduce((acc, b) => acc + b.qty * (tickers[b.currency]?.price ?? coinOf(b.currency)?.price ?? 1), 0);
 
   const onLogout = async () => {
     await api.post('/auth/logout').catch(() => {});

@@ -93,7 +93,16 @@ export function useWalletData(transactionLimit = 20) {
       void fetchTransactions();
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    const onRefresh = () => {
+      void fetchBalance();
+      void fetchTransactions();
+    };
+    window.addEventListener("wallet-refresh", onRefresh);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("wallet-refresh", onRefresh);
+    };
   }, [fetchBalance, fetchTransactions]);
 
   const refresh = useCallback(() => {

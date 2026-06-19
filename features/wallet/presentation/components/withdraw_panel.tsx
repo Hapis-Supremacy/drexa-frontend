@@ -16,12 +16,13 @@ export function WithdrawPanel({ availableUsd, onRefresh }: WithdrawPanelProps) {
   const sym = 'USDT';
   const networks = NETWORKS[sym] ?? ['Default'];
   const [network, setNetwork] = useState(networks[0]);
+  const [address, setAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const numericAmount = parseFloat(amount) || 0;
-  const valid = numericAmount >= 10 && numericAmount <= availableUsd;
+  const valid = numericAmount >= 10 && numericAmount <= availableUsd && address.trim().length > 0;
 
   const handleWithdraw = async () => {
     if (!valid || status === 'loading') return;
@@ -30,15 +31,14 @@ export function WithdrawPanel({ availableUsd, onRefresh }: WithdrawPanelProps) {
     setErrorMsg(null);
 
     try {
-      await api.post('/wallet/withdraw', {
+      await api.post('/wallet/crypto/withdraw', {
         amount: Math.round(numericAmount * 100),
-        currency: 'USD',
-        bank_code: network,
-        account_number: 'mock-account',
-        account_name: 'Drexa User',
+        currency: 'USDT',
+        to_address: address.trim(),
       });
       setStatus('success');
       setAmount('');
+      setAddress('');
       onRefresh();
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : 'Withdrawal failed. Please try again.');
@@ -83,7 +83,20 @@ export function WithdrawPanel({ availableUsd, onRefresh }: WithdrawPanelProps) {
         </div>
 
         <label style={{ display: 'block' }}>
-          <span style={{ font: 'var(--nano)', color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Amount (USD)</span>
+          <span style={{ font: 'var(--nano)', color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Destination Address</span>
+          <div style={{ display: 'flex', alignItems: 'center', height: 52, marginTop: 6, padding: '0 14px', gap: 8,
+            background: 'var(--surface-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)' }}>
+            <input
+              value={address}
+              onChange={event => setAddress(event.target.value)}
+              placeholder="Enter USDT address or User ID"
+              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--fg)', font: 'var(--body)', minWidth: 0 }}
+            />
+          </div>
+        </label>
+
+        <label style={{ display: 'block' }}>
+          <span style={{ font: 'var(--nano)', color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Amount (USDT)</span>
           <div style={{ display: 'flex', alignItems: 'center', height: 52, marginTop: 6, padding: '0 14px', gap: 8,
             background: 'var(--surface-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)' }}>
             <span style={{ font: '700 16px var(--font-num)', color: 'var(--fg-3)' }}>$</span>

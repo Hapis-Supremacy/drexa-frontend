@@ -8,7 +8,7 @@ import {
   linkBtn, tdL, tdR,
 } from '@/features/core/presentation/components/primitives';
 import {
-  COINS, DONUT_COLORS, ACTIVITY, portfolioTotals, coinOf,
+  COINS, DONUT_COLORS, ACTIVITY, coinOf,
 } from '@/features/core/domain/data/mock_data';
 import { series, fmtUSD, fmtNum } from '@/features/core/domain/data/trading_utils';
 import { useMarketStream } from '@/features/core/presentation/hooks/use_market_stream';
@@ -53,15 +53,25 @@ function QuickAction({
 export function HomePage() {
   const router = useRouter();
   const { tickers } = useMarketStream();
-  const tot = useMemo(() => portfolioTotals(tickers), [tickers]);
+  const { walletUsd, transactions, balances } = useWalletData(5);
+  const tot = useMemo(() => {
+    const rows = balances.filter(b => b.qty > 0).map(b => {
+      const sym = b.currency;
+      const t = tickers[sym];
+      const price = t?.price ?? coinOf(sym)?.price ?? 1;
+      const ch = t?.ch ?? coinOf(sym)?.ch ?? 0;
+      const value = b.qty * price;
+      return { sym, value, qty: b.qty, ch };
+    }).sort((a, b) => b.value - a.value);
+    const value = rows.reduce((a, r) => a + r.value, 0);
+    return { rows, value, today: value * 0.0184, pnlPct: 15.2 };
+  }, [balances, tickers]);
   const [range, setRange] = useState('1W');
   const curve = useMemo(() => {
     const cfg = rangeConfig[range];
     return series(cfg.seed, cfg.length, 0.05, tot.value * 0.86);
   }, [range, tot.value]);
   const curveUp = curve[curve.length - 1] >= curve[0];
-
-  const { walletUsd, transactions } = useWalletData(5);
 
   const movers = useMemo(() => {
     return [...COINS].map(c => ({ ...c, ...tickers[c.sym] })).sort((a, b) => b.ch - a.ch).slice(0, 5);

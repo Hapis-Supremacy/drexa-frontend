@@ -7,6 +7,7 @@ export function useOrders(pairId?: string) {
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -40,10 +41,31 @@ export function useOrders(pairId?: string) {
     }
   }, [pairId]);
 
+  const cancelOrder = useCallback(async (orderId: string) => {
+    setCancelling(prev => new Set(prev).add(orderId));
+    try {
+      await api.delete(`/orders/${orderId}`);
+      // Optimistically remove from open orders list
+      setOpenOrders(prev => prev.filter(o => o.order_id !== orderId));
+      // Refresh in background to pull the cancelled order into history
+      refresh();
+      // Optionally trigger an event to refresh wallet
+      window.dispatchEvent(new Event("wallet-refresh"));
+    } catch (err) {
+      console.error("Failed to cancel order", err);
+    } finally {
+      setCancelling(prev => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
+    }
+  }, [refresh]);
+
   useEffect(() => {
     const t = window.setTimeout(refresh, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
 
-  return { openOrders, historyOrders, trades, loading, refresh };
+  return { openOrders, historyOrders, trades, loading, refresh, cancelOrder, cancelling };
 }
