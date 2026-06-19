@@ -16,8 +16,8 @@ import {
 } from "../hooks/useP2P";
 import { P2PAdvertisement, P2POrder } from "../../model/p2p";
 
-const PAY_METHODS = ["Bank Transfer", "BCA", "Mandiri", "BRI", "OVO", "GoPay", "Dana", "LinkAja"];
-const ASSETS = ["BTC", "ETH", "SOL", "USDT", "BNB"];
+const PAY_METHODS = ["Drexa Internal Wallet"];
+const ASSETS = ["BTC", "ETH", "SOL", "BNB"];
 
 export function P2PPage() {
   useScrollReveal();
@@ -34,11 +34,11 @@ export function P2PPage() {
 
   // Marketplace Filters
   const [side, setSide] = useState("buy");
-  const [asset, setAsset] = useState("USDT");
+  const [asset, setAsset] = useState(ASSETS[0]);
   const [amount, setAmount] = useState("");
   const [pay, setPay] = useState("All");
 
-  const pair_id = `${asset}_USD`;
+  const pair_id = `${asset}_USDT`;
 
   // Hooks
   const { ads, mutate: refreshAds } = useP2PAds({
@@ -60,14 +60,19 @@ export function P2PPage() {
   // Filter ads by amount locally
   const filteredAds = useMemo(() => {
     let result = ads;
-    // In our backend, P2PAdvertisement is a seller's offer to sell crypto.
-    // If the user selects "sell", they are looking for "buy" ads, which don't exist yet in the backend.
-    if (side === "sell") return [];
+    
+    if (side === "buy") {
+      // User wants to buy, so show "sell" ads
+      result = result.filter(a => a.type === "sell");
+    } else {
+      // User wants to sell, so show "buy" ads
+      result = result.filter(a => a.type === "buy");
+    }
     
     if (amount) {
       const val = parseFloat(amount);
       if (!isNaN(val)) {
-        result = result.filter(a => val >= a.min_amount && val <= a.max_amount);
+        result = result.filter(a => val <= a.remaining_amount);
       }
     }
     return result;
@@ -173,7 +178,7 @@ export function P2PPage() {
                         </div>
                       </td>
                       <td style={{ padding: "18px 24px" }}>
-                        <div style={{ font: "500 12.5px var(--font)", color: "var(--text-3)", marginTop: 3 }}>Limit {fUSD(o.min_amount)} – {fUSD(o.max_amount)}</div>
+                        <div style={{ font: "500 12.5px var(--font)", color: "var(--text-3)", marginTop: 3 }}>Available {fNum(o.remaining_amount)} {asset}</div>
                       </td>
                       <td style={{ padding: "18px 24px" }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxWidth: 220 }}>
@@ -190,8 +195,7 @@ export function P2PPage() {
                       </td>
                     </tr>
                   ))}
-                  {filteredAds.length === 0 && side === "sell" && <tr><td colSpan={5} style={{ padding: 48, textAlign: "center", font: "500 14px var(--font)", color: "var(--text-3)" }}>Sell ads are not supported currently. Please create an offer instead.</td></tr>}
-                  {filteredAds.length === 0 && side === "buy" && <tr><td colSpan={5} style={{ padding: 48, textAlign: "center", font: "500 14px var(--font)", color: "var(--text-3)" }}>No offers match this filter.</td></tr>}
+                  {filteredAds.length === 0 && <tr><td colSpan={5} style={{ padding: 48, textAlign: "center", font: "500 14px var(--font)", color: "var(--text-3)" }}>No offers match this filter.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -246,7 +250,7 @@ export function P2PPage() {
                   <tr key={a.advertisement_id} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
                     <td style={{ padding: "18px 24px", font: "600 14px var(--font)", color: "var(--text-hi)" }}>{a.pair_id}</td>
                     <td style={{ padding: "18px 24px", font: "500 14px var(--mono)", color: "var(--text-hi)" }}>{fUSD(a.price)}</td>
-                    <td style={{ padding: "18px 24px", font: "500 13px var(--mono)", color: "var(--text-hi)" }}>{fUSD(a.min_amount)} - {fUSD(a.max_amount)}</td>
+                    <td style={{ padding: "18px 24px", font: "500 13px var(--mono)", color: "var(--text-hi)" }}>{fNum(a.remaining_amount)} / {fNum(a.total_amount)}</td>
                     <td style={{ padding: "18px 24px", font: "500 13px var(--font)", color: "var(--text-2)" }}>{a.payment_method}</td>
                     <td style={{ padding: "18px 24px" }}>
                        <span style={{ padding: "4px 8px", borderRadius: "var(--r-sm)", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase",
@@ -256,10 +260,13 @@ export function P2PPage() {
                     </td>
                     <td style={{ padding: "18px 24px", textAlign: "right" }}>
                       {a.status === "active" && (
-                        <button onClick={async () => { await setAdStatus.mutate(a.advertisement_id, "paused"); refreshMyAds(); }} style={{ padding: "6px 12px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-2)", cursor: "pointer" }}>Pause</button>
+                        <button onClick={async () => { await setAdStatus.mutate(a.advertisement_id, "paused"); refreshMyAds(); }} style={{ padding: "6px 12px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-2)", cursor: "pointer", marginRight: 8 }}>Pause</button>
                       )}
                       {a.status === "paused" && (
-                        <button onClick={async () => { await setAdStatus.mutate(a.advertisement_id, "active"); refreshMyAds(); }} style={{ padding: "6px 12px", background: "var(--blue-soft)", border: "1px solid var(--blue)", borderRadius: "var(--r-sm)", color: "var(--blue)", cursor: "pointer" }}>Activate</button>
+                        <button onClick={async () => { await setAdStatus.mutate(a.advertisement_id, "active"); refreshMyAds(); }} style={{ padding: "6px 12px", background: "var(--blue-soft)", border: "1px solid var(--blue)", borderRadius: "var(--r-sm)", color: "var(--blue)", cursor: "pointer", marginRight: 8 }}>Activate</button>
+                      )}
+                      {(a.status === "active" || a.status === "paused") && (
+                        <button onClick={async () => { await setAdStatus.mutate(a.advertisement_id, "cancelled"); refreshMyAds(); }} style={{ padding: "6px 12px", background: "var(--down-soft)", border: "1px solid var(--down)", borderRadius: "var(--r-sm)", color: "var(--down)", cursor: "pointer" }}>Cancel</button>
                       )}
                     </td>
                   </tr>
@@ -314,10 +321,10 @@ function ModalBackdrop({ children, onClose }: { children: React.ReactNode, onClo
 }
 
 function CreateAdModal({ onClose, onSuccess, createAd }: any) {
-  const [asset, setAsset] = useState("USDT");
+  const [type, setType] = useState("sell");
+  const [asset, setAsset] = useState(ASSETS[0]);
   const [price, setPrice] = useState("");
-  const [minAmt, setMinAmt] = useState("");
-  const [maxAmt, setMaxAmt] = useState("");
+  const [amount, setAmount] = useState("");
   const [payMeth, setPayMeth] = useState(PAY_METHODS[0]);
   const [window, setWindow] = useState("15");
 
@@ -325,10 +332,10 @@ function CreateAdModal({ onClose, onSuccess, createAd }: any) {
     e.preventDefault();
     try {
       await createAd.mutate({
-        pair_id: `${asset}_USD`,
+        type,
+        pair_id: `${asset}_USDT`,
         price: parseFloat(price),
-        min_amount: parseFloat(minAmt),
-        max_amount: parseFloat(maxAmt),
+        amount: parseFloat(amount),
         payment_method: payMeth,
         payment_window: parseInt(window)
       });
@@ -339,30 +346,33 @@ function CreateAdModal({ onClose, onSuccess, createAd }: any) {
   return (
     <ModalBackdrop onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ width: 450, background: "var(--card)", borderRadius: "var(--r-lg)", padding: 24, border: "1px solid var(--border)", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
-        <h3 style={{ marginTop: 0, marginBottom: 20, font: "600 20px var(--font)" }}>Create Sell Offer</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 20, font: "600 20px var(--font)" }}>Create Offer</h3>
         {createAd.error && <div style={{ padding: 12, background: "var(--down-soft)", color: "var(--down)", borderRadius: "var(--r-sm)", marginBottom: 16, fontSize: 13 }}>{createAd.error.message}</div>}
         
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)" }}>
+            I want to
+            <select value={type} onChange={e => setType(e.target.value)} style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }}>
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)" }}>
             Asset
             <select value={asset} onChange={e => setAsset(e.target.value)} style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }}>
               {ASSETS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)" }}>
-            Price (USD)
-            <input required type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 15500" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
-          </label>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)" }}>
-            Min Amount (Crypto)
-            <input required type="number" step="any" value={minAmt} onChange={e => setMinAmt(e.target.value)} placeholder="0.0" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
+            Price (USDT)
+            <input required type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 15500" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)" }}>
-            Max Amount (Crypto)
-            <input required type="number" step="any" value={maxAmt} onChange={e => setMaxAmt(e.target.value)} placeholder="0.0" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
+            Quantity (Crypto)
+            <input required type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.0" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
           </label>
         </div>
 
@@ -407,14 +417,14 @@ function CreateOrderModal({ ad, onClose, onSuccess, createOrder }: any) {
   return (
     <ModalBackdrop onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ width: 400, background: "var(--card)", borderRadius: "var(--r-lg)", padding: 24, border: "1px solid var(--border)", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
-        <h3 style={{ marginTop: 0, marginBottom: 8, font: "600 20px var(--font)" }}>Buy {ad.pair_id.split("_")[0]}</h3>
-        <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "var(--text-3)" }}>Rate: {fUSD(ad.price)} • Limits: {ad.min_amount} - {ad.max_amount} Crypto</p>
+        <h3 style={{ marginTop: 0, marginBottom: 8, font: "600 20px var(--font)" }}>Take Offer</h3>
+        <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "var(--text-3)" }}>Rate: {fUSD(ad.price)} • Available: {fNum(ad.remaining_amount)} {ad.pair_id.split("_")[0]}</p>
         
         {createOrder.error && <div style={{ padding: 12, background: "var(--down-soft)", color: "var(--down)", borderRadius: "var(--r-sm)", marginBottom: 16, fontSize: 13 }}>{createOrder.error.message}</div>}
 
         <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-2)", marginBottom: 16 }}>
-          I want to buy (Crypto amount)
-          <input required type="number" step="any" min={ad.min_amount} max={ad.max_amount} value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.0" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
+          Quantity ({ad.pair_id.split("_")[0]})
+          <input required type="number" step="any" min={0.00000001} max={ad.remaining_amount} value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.0" style={{ padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", color: "var(--text-hi)" }} />
         </label>
 
         <div style={{ padding: 14, background: "var(--inset)", borderRadius: "var(--r-sm)", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -471,7 +481,7 @@ function OrderDetailModal({ order, uid, onClose, onRefresh, mutations }: any) {
             <div style={{ fontSize: 14, fontWeight: 600, color: isBuyer ? "var(--up)" : "var(--down)" }}>{isBuyer ? "Buyer" : "Seller"}</div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}>Total Fiat</div>
+            <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}>Total USDT</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)", fontFamily: "var(--mono)" }}>{fUSD(order.total_usd)}</div>
           </div>
           <div>

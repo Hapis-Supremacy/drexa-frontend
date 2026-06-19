@@ -142,8 +142,14 @@ export function CoinBadge({ sym, size = 40 }: { sym: string; size?: number }) {
 }
 
 /* ============================================================ FORMAT + DATA */
-export const fUSD = (n: number, dp = 2) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
-export const fNum = (n: number, dp = 2) => n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+export const fUSD = (n: number | undefined | null, dp = 2) => {
+  if (n === undefined || n === null) return "$0.00";
+  return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+};
+export const fNum = (n: number | undefined | null, dp = 2) => {
+  if (n === undefined || n === null) return "0.00";
+  return Number(n).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+};
 export const fPct = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 export const fCompact = (n: number) => {
   if (n >= 1e12) return "$" + (n / 1e12).toFixed(2) + "T";

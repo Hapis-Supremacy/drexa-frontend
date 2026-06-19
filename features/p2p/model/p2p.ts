@@ -1,16 +1,17 @@
 import { api } from "@/lib/api";
 
-export type AdvertisementStatus = "active" | "paused" | "completed";
+export type AdvertisementStatus = "active" | "paused" | "completed" | "cancelled";
 export type OrderStatus = "created" | "paid" | "released" | "disputed" | "cancelled";
 export type DisputeStatus = "open" | "resolved";
 
 export interface P2PAdvertisement {
   advertisement_id: string;
   seller_id: string;
+  type: string;
   pair_id: string;
   price: number;
-  min_amount: number;
-  max_amount: number;
+  total_amount: number;
+  remaining_amount: number;
   payment_method: string;
   payment_window: number;
   seller_address: string;
@@ -72,10 +73,10 @@ export interface AdFilter {
 }
 
 export interface CreateAdInput {
+  type: string;
   pair_id: string;
   price: number;
-  min_amount: number;
-  max_amount: number;
+  amount: number;
   payment_method: string;
   payment_window: number;
   seller_address: string;
