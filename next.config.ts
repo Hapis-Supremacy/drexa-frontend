@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   // accidental Tubes/package-lock.json), which makes Turbopack panic with
   // "Resource path ... needs to be on project filesystem drexa-frontend".
   turbopack: {
-    root: __dirname,
+    root: process.cwd(),
   },
   images: {
     remotePatterns: [
