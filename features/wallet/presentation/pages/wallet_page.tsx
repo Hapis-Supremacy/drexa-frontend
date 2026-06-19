@@ -9,6 +9,7 @@ import {
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 import { api } from "@/lib/api";
 import { useWalletData } from "@/features/wallet/presentation/hooks/useWalletData";
+import { useCryptoAddress, isCryptoSupported } from "@/features/wallet/presentation/hooks/useCryptoWallet";
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -20,7 +21,7 @@ interface WalRow { sym: string; qty: number; price: number; value: number; inOrd
 
 
 /* ---- Stripe payment form ---------------------------------------- */
-function StripeCheckoutForm({ clientSecret, amount, asset, onComplete }: { clientSecret: string; amount: string; asset: string; onComplete: () => void }) {
+function StripeCheckoutForm({ clientSecret, amount, onComplete }: { clientSecret: string; amount: string; onComplete: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -99,14 +100,14 @@ function DepositModalContent({ closeModal }: { closeModal: () => void }) {
     setLoadingIntent(true);
     setError("");
     try {
-      const data = await api.post<any>("/payments/deposit/intent", {
+      const data = await api.post<{ client_secret: string }>("/payments/deposit/intent", {
         amount: Math.round(parseFloat(buyAmt) * 100), // USD to cents
         currency: "USD"
       });
       console.log("Deposit intent response:", data);
       setClientSecret(data.client_secret);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
     setLoadingIntent(false);
   };
@@ -133,14 +134,38 @@ function DepositModalContent({ closeModal }: { closeModal: () => void }) {
         </>
       ) : (
         <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night' } }}>
-          <StripeCheckoutForm clientSecret={clientSecret} amount={buyAmt} asset="USD" onComplete={closeModal} />
+          <StripeCheckoutForm clientSecret={clientSecret} amount={buyAmt} onComplete={closeModal} />
         </Elements>
       )}
     </>
   );
 }
 
-function WithdrawModalContent({ rows, closeModal }: any) {
+function CryptoDepositModalContent({ asset }: { asset: string }) {
+  const { data, loading, error } = useCryptoAddress(asset);
+
+  if (loading) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)' }}>Generating address...</div>;
+  if (error) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--warn)' }}>{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div style={{ textAlign: "center", padding: "12px 0" }}>
+      <div style={{ font: "500 13px var(--font)", color: "var(--text-3)", marginBottom: 8 }}>Send only {asset} ({data.network}) to this address</div>
+      <div style={{ background: "#fff", padding: 12, display: "inline-block", borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ width: 160, height: 160, background: "#eee", display: "flex", alignItems: "center", justifyContent: "center", color: "#999", font: "600 12px var(--font)" }}>QR CODE</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: "10px 14px", gap: 8 }}>
+        <div style={{ flex: 1, font: "500 13px var(--mono)", color: "var(--text-hi)", wordBreak: "break-all", textAlign: "left" }}>{data.address}</div>
+        <button onClick={() => navigator.clipboard.writeText(data.address)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+          <Icon name="copy" size={16} color="var(--text-3)" />
+        </button>
+      </div>
+      <div style={{ font: "500 13px var(--font)", color: "var(--text-4)", marginTop: 12 }}>Network: {data.chain}</div>
+    </div>
+  );
+}
+
+function WithdrawModalContent({ rows, closeModal }: { rows: WalRow[], closeModal: () => void }) {
   const [payoutAmt, setPayoutAmt] = useState("");
   const [paypalEmail, setPaypalEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -148,7 +173,7 @@ function WithdrawModalContent({ rows, closeModal }: any) {
   const [success, setSuccess] = useState(false);
 
   // Strictly enforce USD for withdrawal
-  const usdRow = rows.find((r: any) => r.sym === 'USD' || r.sym === 'USDC') || { qty: 0 };
+  const usdRow = rows.find((r: WalRow) => r.sym === 'USD' || r.sym === 'USDC') || { qty: 0 };
   const maxUsd = usdRow.qty;
 
   const handleWithdraw = async () => {
@@ -162,8 +187,8 @@ function WithdrawModalContent({ rows, closeModal }: any) {
         paypal_email: paypalEmail
       });
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
   };
@@ -208,7 +233,7 @@ function WithdrawModalContent({ rows, closeModal }: any) {
   );
 }
 
-function TransferModalContent({ rows, coinRow, asset, assetOpen, setAssetOpen, setAsset, setNet, closeModal }: any) {
+function TransferModalContent({ rows, coinRow, asset, assetOpen, setAssetOpen, setAsset, setNet, closeModal }: { rows: WalRow[], coinRow: WalRow, asset: string, assetOpen: boolean, setAssetOpen: Dispatch<SetStateAction<boolean>>, setAsset: Dispatch<SetStateAction<string>>, setNet: Dispatch<SetStateAction<number>>, closeModal: () => void }) {
   const [toUserId, setToUserId] = useState("");
   const [txAmt, setTxAmt] = useState("");
   const [txNote, setTxNote] = useState("");
@@ -228,8 +253,8 @@ function TransferModalContent({ rows, coinRow, asset, assetOpen, setAssetOpen, s
         currency: asset
       });
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
   };
@@ -413,16 +438,14 @@ export function WalletPage() {
 
   const [modal, setModal] = useState<string | null>(null);
   const [asset, setAsset] = useState("USDC");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [net, setNet] = useState(0);
   const [assetOpen, setAssetOpen] = useState(false);
 
   const coinRow = rows.find(r => r.sym === asset) || rows[0];
   const openModal = (type: string, sym?: string) => { setModal(type); if (sym) { setAsset(sym); setNet(0); } };
-<<<<<<< master
-  const closeModal = () => { setModal(null); refreshBalances(); };
-=======
   const closeModal = () => { setModal(null); refresh(); };
->>>>>>> master
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const assetSelectProps = { rows, asset, coinRow, open: assetOpen, setOpen: setAssetOpen, setAsset, setNet };
 
   useEffect(() => {
@@ -552,7 +575,7 @@ export function WalletPage() {
       {/* ── WITHDRAW MODAL ────────────────────────────────────────── */}
       {modal === "withdraw" && (
         <Modal title="Withdraw funds" icon="withdraw" onClose={closeModal}>
-          <WithdrawModalContent rows={rows} coinRow={coinRow} asset={asset} assetOpen={assetOpen} setAssetOpen={setAssetOpen} setAsset={setAsset} setNet={setNet} closeModal={closeModal} />
+          <WithdrawModalContent rows={rows} closeModal={closeModal} />
         </Modal>
       )}
 

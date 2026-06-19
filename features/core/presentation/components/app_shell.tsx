@@ -7,7 +7,7 @@
 import React, { CSSProperties, ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Icon, Logo, Avatar, USER } from "./drexa_kit";
+import { Icon, Logo, Avatar } from "./drexa_kit";
 import { api } from "@/lib/api";
 import { useUser, clearUserCache } from "@/features/auth/presentation/hooks/useUser";
 

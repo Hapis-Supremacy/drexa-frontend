@@ -5,12 +5,12 @@ import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/features/core/presentation/components/app_shell";
 import {
   Icon, Container, CoinBadge, Delta,
-  COINS, COIN, fUSD, fNum, fCompact, rng, type Coin,
+  COINS, COIN, fUSD, fNum, fCompact, type Coin,
 } from "@/features/core/presentation/components/drexa_kit";
 import { useMarketStream, type OrderBook as OrderBookData } from "@/features/core/presentation/hooks/use_market_stream";
 import { useBinanceKlines } from "@/features/core/presentation/hooks/use_binance_klines";
 import { usePlaceOrder } from "../hooks/usePlaceOrder";
-import { useOrderBook } from "../hooks/useOrderBook";
+import { useOrders } from "../hooks/useOrders";
 import type { OrderSide, OrderType } from "../../model/order";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 
@@ -101,7 +101,7 @@ function CandleChart({ data, h = 360, tf = "1H" }: { data: Candle[]; h?: number;
 function OrderBook({ price, ob }: { price: number, ob?: OrderBookData }) {
   const rows = useMemo(() => {
     if (ob && (ob.bids.length > 0 || ob.asks.length > 0)) {
-      const mapLevels = (levels: any[]) => {
+      const mapLevels = (levels: { price: number; quantity: number }[]) => {
         return levels.map(l => ({ p: l.price, amt: l.quantity, total: l.price * l.quantity })).sort((a,b) => b.p - a.p);
       };
       return { asks: mapLevels(ob.asks), bids: mapLevels(ob.bids) };
@@ -120,8 +120,8 @@ function OrderBook({ price, ob }: { price: number, ob?: OrderBookData }) {
     <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden" }}>
       <div style={{ padding: "16px 18px 12px", display: "flex", alignItems: "center", gap: 8, font: "700 15px var(--font)", color: "var(--text-hi)" }}>
         <span>Order book</span>
-        <span title={rows.live ? "Live depth from matching engine" : "No resting orders — simulated depth"}
-          style={{ width: 7, height: 7, borderRadius: "50%", background: rows.live ? "var(--up)" : "var(--text-4)", boxShadow: rows.live ? "0 0 0 3px var(--up-soft)" : "none" }} />
+        <span title={!!ob ? "Live depth from matching engine" : "No resting orders — book is empty"}
+          style={{ width: 7, height: 7, borderRadius: "50%", background: !!ob ? "var(--up)" : "var(--text-4)", boxShadow: !!ob ? "0 0 0 3px var(--up-soft)" : "none" }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "0 14px 8px", font: "600 10.5px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>
         <span>Price (USDC)</span><span>Amount</span>
@@ -272,27 +272,26 @@ function OrderTicket({ coin }: { coin: Coin }) {
   );
 }
 
-const OPEN_ORDERS = [
-  { pair: "BTC/USDC", side: "Buy", type: "Limit", price: 62500, amt: 0.05, filled: "0%", time: "10:24" },
-  { pair: "SOL/USDC", side: "Sell", type: "Stop-Limit", price: 152.00, amt: 8, filled: "0%", time: "09:48" },
-];
-const ORDER_HISTORY = [
-  { pair: "ETH/USDC", side: "Buy", type: "Market", price: 3090.12, amt: 0.4, status: "Filled", time: "Jun 10" },
-  { pair: "BTC/USDC", side: "Buy", type: "Limit", price: 61800, amt: 0.05, status: "Filled", time: "Jun 9" },
-  { pair: "DOGE/USDC", side: "Sell", type: "Limit", price: 0.162, amt: 4200, status: "Cancelled", time: "Jun 8" },
-];
-const TRADE_HISTORY = [
-  { pair: "SOL/USDC", side: "Buy", price: 146.20, amt: 12.5, fee: 1.83, time: "Today 10:24" },
-  { pair: "ETH/USDC", side: "Sell", price: 3108.74, amt: 0.4, fee: 1.24, time: "Yesterday" },
-  { pair: "BTC/USDC", side: "Buy", price: 61800, amt: 0.05, fee: 3.09, time: "Jun 9" },
-];
 function OrdersPanel() {
   const [tab, setTab] = useState("open");
+  const { openOrders, historyOrders, trades, loading } = useOrders();
+
   const tabs: [string, string][] = [["open", "Open Orders"], ["history", "Order History"], ["trades", "Trade History"]];
   const th: CSSProperties = { textAlign: "left", padding: "12px 20px", font: "600 11px var(--font)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em" };
   const td: CSSProperties = { padding: "13px 20px", font: "500 13px var(--font)", color: "var(--text-2)" };
   const tdM: CSSProperties = { ...td, fontFamily: "var(--mono)", fontVariantNumeric: "tabular-nums" };
-  const SideTag = ({ s }: { s: string }) => <span style={{ font: "600 12.5px var(--font)", color: s === "Buy" ? "var(--up)" : "var(--down)" }}>{s}</span>;
+  const SideTag = ({ s }: { s: string }) => <span style={{ font: "600 12.5px var(--font)", textTransform: "capitalize", color: s.toLowerCase() === "buy" ? "var(--up)" : "var(--down)" }}>{s}</span>;
+
+  const formatDate = (dateStr: string) => {
+    try {
+      if (!dateStr) return "-";
+      const d = new Date(dateStr);
+      return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
       <div style={{ display: "flex", gap: 26, padding: "0 20px", borderBottom: "1px solid var(--border)" }}>
@@ -300,39 +299,48 @@ function OrdersPanel() {
           <button key={id} onClick={() => setTab(id)} style={{
             background: "none", border: "none", cursor: "pointer", padding: "16px 0", font: `${tab === id ? 600 : 500} 13.5px var(--font)`,
             color: tab === id ? "var(--text-hi)" : "var(--text-3)", borderBottom: tab === id ? "2px solid var(--blue)" : "2px solid transparent", marginBottom: -1,
-          }}>{label}{id === "open" ? ` (${OPEN_ORDERS.length})` : ""}</button>
+          }}>{label}{id === "open" ? ` (${openOrders.length})` : ""}</button>
         ))}
       </div>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         {tab === "open" && <>
           <thead><tr>{["Pair", "Side", "Type", "Price", "Amount", "Filled", "Time", ""].map((h, i) => <th key={i} style={{ ...th, textAlign: i > 2 && i < 7 ? "right" : "left" }}>{h}</th>)}</tr></thead>
-          <tbody>{OPEN_ORDERS.map((o, i) => (
-            <tr key={i} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
-              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{o.pair}</td><td style={td}><SideTag s={o.side} /></td><td style={td}>{o.type}</td>
-              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price, o.price < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.amt}</td>
-              <td style={{ ...tdM, textAlign: "right" }}>{o.filled}</td><td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{o.time}</td>
+          <tbody>
+            {loading && openOrders.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: "center", padding: "40px 0" }}>Loading...</td></tr>}
+            {!loading && openOrders.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: "center", padding: "40px 0" }}>No open orders</td></tr>}
+            {openOrders.map((o) => (
+            <tr key={o.order_id} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{(o.pair_id || "").replace('_', '/')}</td><td style={td}><SideTag s={o.side} /></td><td style={{ ...td, textTransform: "capitalize" }}>{o.type}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price || 0, (o.price || 0) < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.quantity}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{o.filled_quantity}</td><td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{formatDate(o.created_at)}</td>
               <td style={{ ...td, textAlign: "right" }}><button style={{ font: "600 12.5px var(--font)", color: "var(--down)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button></td>
             </tr>
           ))}</tbody>
         </>}
         {tab === "history" && <>
           <thead><tr>{["Pair", "Side", "Type", "Price", "Amount", "Status", "Time"].map((h, i) => <th key={i} style={{ ...th, textAlign: i > 2 && i < 6 ? "right" : "left" }}>{h}</th>)}</tr></thead>
-          <tbody>{ORDER_HISTORY.map((o, i) => (
-            <tr key={i} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
-              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{o.pair}</td><td style={td}><SideTag s={o.side} /></td><td style={td}>{o.type}</td>
-              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price, o.price < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.amt}</td>
-              <td style={{ ...td, textAlign: "right" }}><span style={{ font: "600 12px var(--font)", color: o.status === "Filled" ? "var(--up)" : "var(--text-3)" }}>{o.status}</span></td>
-              <td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{o.time}</td>
+          <tbody>
+            {loading && historyOrders.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: "center", padding: "40px 0" }}>Loading...</td></tr>}
+            {!loading && historyOrders.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: "center", padding: "40px 0" }}>No order history</td></tr>}
+            {historyOrders.map((o) => (
+            <tr key={o.order_id} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{(o.pair_id || "").replace('_', '/')}</td><td style={td}><SideTag s={o.side} /></td><td style={{ ...td, textTransform: "capitalize" }}>{o.type}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price || 0, (o.price || 0) < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.quantity}</td>
+              <td style={{ ...td, textAlign: "right", textTransform: "capitalize" }}><span style={{ font: "600 12px var(--font)", color: o.status === "filled" ? "var(--up)" : "var(--text-3)" }}>{(o.status || "").replace('_', ' ')}</span></td>
+              <td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{formatDate(o.created_at)}</td>
             </tr>
           ))}</tbody>
         </>}
         {tab === "trades" && <>
           <thead><tr>{["Pair", "Side", "Price", "Amount", "Fee", "Time"].map((h, i) => <th key={i} style={{ ...th, textAlign: i > 1 && i < 5 ? "right" : "left" }}>{h}</th>)}</tr></thead>
-          <tbody>{TRADE_HISTORY.map((o, i) => (
-            <tr key={i} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
-              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{o.pair}</td><td style={td}><SideTag s={o.side} /></td>
-              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price, o.price < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.amt}</td>
-              <td style={{ ...tdM, textAlign: "right" }}>{fUSD(o.fee)}</td><td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{o.time}</td>
+          <tbody>
+            {loading && trades.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: "center", padding: "40px 0" }}>Loading...</td></tr>}
+            {!loading && trades.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: "center", padding: "40px 0" }}>No trade history</td></tr>}
+            {trades.map((o) => (
+            <tr key={o.trade_id} className="mkt-row" style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ ...td, color: "var(--text-hi)", fontWeight: 600 }}>{(o.pair_id || "").replace('_', '/')}</td><td style={td}><SideTag s={o.side} /></td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fNum(o.price || 0, (o.price || 0) < 10 ? 4 : 2)}</td><td style={{ ...tdM, textAlign: "right" }}>{o.quantity}</td>
+              <td style={{ ...tdM, textAlign: "right" }}>{fUSD(o.fee)}</td><td style={{ ...tdM, textAlign: "right", color: "var(--text-3)" }}>{formatDate(o.executed_at)}</td>
             </tr>
           ))}</tbody>
         </>}

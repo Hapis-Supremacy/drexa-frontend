@@ -9,26 +9,13 @@ import {
 } from "@/features/core/presentation/components/drexa_kit";
 import { useScrollReveal } from "@/features/core/presentation/hooks/use_scroll_reveal";
 
-const PF_HOLD = [
-  { sym: "BTC",  qty: 0.1312, avg: 52200 },
-  { sym: "ETH",  qty: 1.84,   avg: 2620 },
-  { sym: "SOL",  qty: 22.5,   avg: 96.4 },
-  { sym: "LINK", qty: 140,    avg: 12.1 },
-  { sym: "USDC", qty: 1240,   avg: 1 },
-];
+import { useLedgerBalances, toMainUnit } from "@/features/wallet/presentation/hooks/useLedgerBalances";
+import { useMarketStream } from "@/features/core/presentation/hooks/use_market_stream";
+import { useMemo } from "react";
+
 const PF_COLOR: Record<string, string> = { BTC: "#F7931A", ETH: "#627EEA", SOL: "#9945FF", LINK: "#2A5ADA", USDC: "#2775CA" };
 
 interface PfRow { sym: string; qty: number; avg: number; price: number; ch: number; value: number; cost: number; pnl: number; pnlPct: number; name: string; }
-function pfCompute() {
-  const rows: PfRow[] = PF_HOLD.map(h => {
-    const c = COIN(h.sym); const price = c ? c.price : 1; const ch = c ? c.ch : 0;
-    const value = h.qty * price, cost = h.qty * h.avg, pnl = value - cost;
-    return { ...h, price, ch, value, cost, pnl, pnlPct: cost ? (pnl / cost) * 100 : 0, name: c ? c.name : "USD Coin" };
-  }).sort((a, b) => b.value - a.value);
-  const value = rows.reduce((a, r) => a + r.value, 0);
-  const cost = rows.reduce((a, r) => a + r.cost, 0);
-  return { rows, value, cost, pnl: value - cost, pnlPct: cost ? ((value - cost) / cost) * 100 : 0 };
-}
 function pfCurve(seed: number, n: number, vol: number, end: number) {
   const r = rng(seed); const raw = [1];
   for (let i = 1; i < n; i++) raw.push(Math.max(0.2, raw[i - 1] * (1 + (r() - 0.45) * vol)));
@@ -41,7 +28,37 @@ const tdRm: CSSProperties = { textAlign: "right", padding: "14px 24px", font: "5
 export function PortfolioPage() {
   useScrollReveal();
   const [tf, setTf] = useState("1M");
-  const pf = pfCompute();
+  
+  const { balances, loading } = useLedgerBalances();
+  const { getTicker } = useMarketStream();
+
+  const pf = useMemo(() => {
+    const rows: PfRow[] = Object.values(balances).filter(b => b.balance > 0).map(b => {
+      const sym = b.currency;
+      const qty = toMainUnit(sym, b.balance);
+      const c = COIN(sym);
+      const ticker = getTicker(sym);
+      
+      const price = ticker?.price || (c ? c.price : 1);
+      const ch = ticker?.ch || (c ? c.ch : 0);
+      
+      const avg = 0; // Backend does not track average cost yet
+      const cost = qty * avg;
+      const value = qty * price;
+      const pnl = value - cost;
+      
+      return { 
+        sym, qty, avg, price, ch, value, cost, pnl, 
+        pnlPct: cost ? (pnl / cost) * 100 : 0, 
+        name: c ? c.name : sym 
+      };
+    }).sort((a, b) => b.value - a.value);
+
+    const value = rows.reduce((a, r) => a + r.value, 0);
+    const cost = rows.reduce((a, r) => a + r.cost, 0);
+    return { rows, value, cost, pnl: value - cost, pnlPct: cost ? ((value - cost) / cost) * 100 : 0 };
+  }, [balances, getTicker]);
+
   const conf = PTF.find(t => t[0] === tf)!;
   const curve = pfCurve(conf[1], 60, conf[2], pf.value);
   const periodReturn = pf.value - curve[0];
@@ -50,10 +67,10 @@ export function PortfolioPage() {
   const best = [...pf.rows].sort((a, b) => b.pnlPct - a.pnlPct)[0];
 
   const stats: { label: string; val: string; pct?: number; up?: boolean }[] = [
-    { label: "Total invested", val: fUSD(pf.cost) },
-    { label: "Current value", val: fUSD(pf.value) },
-    { label: "Total return", val: (pf.pnl >= 0 ? "+" : "") + fUSD(pf.pnl), pct: pf.pnlPct, up: pf.pnl >= 0 },
-    { label: "Best performer", val: best.sym, pct: best.pnlPct, up: best.pnlPct >= 0 },
+    { label: "Total invested", val: "N/A" }, // Temporarily hide cost basis since it's not tracked
+    { label: "Current value", val: loading ? "..." : fUSD(pf.value) },
+    { label: "Total return", val: "N/A" },
+    { label: "Best performer", val: best ? best.sym : "-", pct: best?.pnlPct || 0, up: (best?.pnlPct || 0) >= 0 },
   ];
 
   return (
@@ -137,8 +154,8 @@ export function PortfolioPage() {
                     <td style={tdRm}>{fUSD(r.price, r.price < 10 ? 4 : 2)}</td>
                     <td style={{ ...tdRm, color: "var(--text-hi)", fontWeight: 600 }}>{fUSD(r.value)}</td>
                     <td style={{ textAlign: "right", padding: "14px 24px" }}>
-                      <div style={{ font: "600 13.5px var(--mono)", color: r.pnl >= 0 ? "var(--up)" : "var(--down)", fontVariantNumeric: "tabular-nums" }}>{r.pnl >= 0 ? "+" : "−"}{fUSD(Math.abs(r.pnl))}</div>
-                      <div style={{ marginTop: 2 }}><Delta v={r.pnlPct} size={11.5} /></div>
+                      <div style={{ font: "600 13.5px var(--mono)", color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>N/A</div>
+                      <div style={{ marginTop: 2, font: "500 11px var(--font)", color: "var(--text-4)" }}>No cost data</div>
                     </td>
                   </tr>
                 ))}

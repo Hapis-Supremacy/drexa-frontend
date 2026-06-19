@@ -65,6 +65,7 @@ export function LoginFilledPage() {
                     >
                     
                         <div className="flex flex-col gap-8">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src="/logo_drexa.svg" className="w-[196px]" alt="" />
                             <h1 className="text-3xl text-white font-sans font-bold">Log In</h1>
                         </div>

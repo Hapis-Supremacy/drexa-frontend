@@ -77,7 +77,7 @@ export function IdentityVerificationPage() {
                         onClick={() => router.push("/register/pin")}
                         className="mt-3 text-gray-400 font-semibold text-sm hover:text-white transition-colors cursor-pointer"
                     >
-                        I'll do this later
+                        I&apos;ll do this later
                     </button>
                 </form>
             </div>

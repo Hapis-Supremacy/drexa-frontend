@@ -2,7 +2,32 @@ import { api } from "@/lib/api";
 
 export type OrderSide = "buy" | "sell";
 export type OrderType = "market" | "limit" | "stop-limit" | "oco";
-export type OrderStatus = "open" | "filled" | "partially_filled" | "cancelled" | "rejected";
+export type OrderStatus = "pending" | "open" | "filled" | "partially_filled" | "cancelled" | "rejected";
+
+export interface Order {
+  order_id: string;
+  pair_id: string;
+  side: OrderSide;
+  type: OrderType;
+  status: OrderStatus;
+  price: number;
+  quantity: number;
+  filled_quantity: number;
+  fee: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Trade {
+  trade_id: string;
+  pair_id: string;
+  side: OrderSide;
+  role: "maker" | "taker";
+  price: number;
+  quantity: number;
+  fee: number;
+  executed_at: string;
+}
 
 export interface PlaceOrderRequest {
   pair_id: string;

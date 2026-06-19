@@ -27,15 +27,19 @@ export function useCryptoAddress(currency: string, enabled = true) {
 
   useEffect(() => {
     if (!enabled || !isCryptoSupported(currency)) {
-      setData(null);
-      setError(null);
-      setLoading(false);
+      queueMicrotask(() => {
+        setData(null);
+        setError(null);
+        setLoading(false);
+      });
       return;
     }
 
     let active = true;
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
 
     api
       .get<CryptoAsset>(`/wallet/crypto/address/${currency}`)

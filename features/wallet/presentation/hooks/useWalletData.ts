@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { WalletBalance, WalletTransaction, WalletTransactionStatus, WalletTransactionType } from '@/features/wallet/domain/types';
+import type { WalletTransaction, WalletTransactionStatus, WalletTransactionType } from '@/features/wallet/domain/types';
 import { api } from '@/lib/api';
 
 type WalletTransactionResponse = {
